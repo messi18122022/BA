@@ -26,6 +26,21 @@ from tkinter import filedialog
 import os
 import sys
 
+def shorten_filename(filename):
+    """
+    Schneidet den Dateinamen ab: Sucht nach '_clt' und entfernt diesen Teil (inklusive des
+    vorangehenden Unterstrichs) aus dem Namen.
+    
+    Beispiel:
+      2025-02-26_S007_Cl_13_clt-dsk-n-1802_20250227-074721.txt 
+      -> 2025-02-26_S007_Cl_13
+    """
+    base = os.path.basename(filename)
+    index = base.find("_clt")
+    if index != -1:
+        return base[:index]
+    return base
+
 def read_data(filename):
     """
     Liest die Datei ein und extrahiert die Daten ab der Zeile,
@@ -97,16 +112,16 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
             if sigma_obs**2 >= sigma_ext**2:
                 sigma_col = np.sqrt(sigma_obs**2 - sigma_ext**2)
             else:
-                print(f"Warnung: Bei {os.path.basename(file_with)} ist σ_obs² kleiner als σ_ext². Setze σ_col auf 0.")
+                print(f"Warnung: Bei {shorten_filename(file_with)} ist σ_obs² kleiner als σ_ext². Setze σ_col auf 0.")
                 sigma_col = 0
             
             # Umrechnung zurück in FWHM für die Säule
             fwhm_col = sigma_col * const
             
-            # Ergebnisse speichern
+            # Ergebnisse speichern (verwende die gekürzten Dateinamen)
             results.append({
-                "Datei mit Säule": os.path.basename(file_with),
-                "Datei ohne Säule": os.path.basename(file_without),
+                "Datei mit Säule": shorten_filename(file_with),
+                "Datei ohne Säule": shorten_filename(file_without),
                 "FWHM (mit Säule) [min]": fwhm_with,
                 "FWHM (ohne Säule) [min]": fwhm_without,
                 "σ_obs": sigma_obs,
@@ -117,7 +132,7 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
             
             # Visualisierung: Zwei Subplots für das jeweilige Paar
             fig, axs = plt.subplots(2, 1, figsize=(8, 10))
-            fig.suptitle(f"Messung {i}: {os.path.basename(file_with)} vs. {os.path.basename(file_without)}", fontsize=14)
+            fig.suptitle(f"Messung {i}: {shorten_filename(file_with)} vs. {shorten_filename(file_without)}", fontsize=14)
             
             # Plot: Messung mit Säule
             axs[0].plot(t_with, y_with, 'ko', markersize=3, label="Messdaten (mit Säule)")
@@ -153,7 +168,7 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
             
             pdf.savefig(fig)
             plt.close(fig)
-            print(f"Messung {i} ausgewertet: {os.path.basename(file_with)} und {os.path.basename(file_without)}")
+            print(f"Messung {i} ausgewertet: {shorten_filename(file_with)} und {shorten_filename(file_without)}")
         
         # Letzte Seite: Tabelle mit allen Berechnungen
         fig, ax = plt.subplots(figsize=(12, len(results)*0.5 + 2))
