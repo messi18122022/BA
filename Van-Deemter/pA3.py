@@ -9,7 +9,7 @@ korrekt abgezogen werden können.
 Berechnungsgrundlagen:
   • Für jedes Chromatogramm wird die Halbwertsbreite (FWHM) ermittelt.
   • Die Umrechnung in sigma erfolgt über: w₁/₂ = σ · √(8·ln2)
-  • Es gilt: σ_obs² = σ_col² + σ_ext², 
+  • Es gilt: σ_obs² = σ_col² + σ_ext²,
     wobei σ_obs aus der Messung mit Säule und σ_ext aus der Messung ohne Säule berechnet wird.
   • Daraus folgt: σ_col = √(σ_obs² - σ_ext²) und w₁/₂ (Säule) = σ_col · √(8·ln2)
 
@@ -17,7 +17,8 @@ Pro Dateipaar wird eine Seite im PDF-Report erstellt, die ein 3×2-Raster enthä
   - 1. Zeile:   Mit Säule (links: Komplett, rechts: Zoom)
   - 2. Zeile:   Ohne Säule (links: Komplett, rechts: Zoom)
   - 3. Zeile:   Enthält eine Textbox mit den berechneten Ergebnissen
-Auf der letzten Seite wird eine Tabelle mit allen Berechnungsergebnissen dargestellt.
+Auf der letzten Seite wird eine Tabelle dargestellt, in der nur noch die Dateinamen und die
+FWHM (Säule) ausgegeben werden.
 """
 
 import numpy as np
@@ -33,9 +34,9 @@ def shorten_filename(filename):
     """
     Schneidet den Dateinamen ab: Sucht nach '_clt' und entfernt diesen Teil (inklusive des
     vorangehenden Unterstrichs) aus dem Namen.
-    
+
     Beispiel:
-      2025-02-26_S007_Cl_13_clt-dsk-n-1802_20250227-074721.txt 
+      2025-02-26_S007_Cl_13_clt-dsk-n-1802_20250227-074721.txt
       -> 2025-02-26_S007_Cl_13
     """
     base = os.path.basename(filename)
@@ -143,17 +144,10 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
             results.append({
                 "Datei mit Säule": shorten_filename(file_with),
                 "Datei ohne Säule": shorten_filename(file_without),
-                "FWHM (mit Säule) [min]": fwhm_with,
-                "FWHM (ohne Säule) [min]": fwhm_without,
-                "σ_obs": sigma_obs,
-                "σ_ext": sigma_ext,
-                "σ_col": sigma_col,
                 "FWHM (Säule) [min]": fwhm_col
             })
             
-            # Erzeuge 6 Bereiche (3 Zeilen, 2 Spalten),
-            # wobei nur die ersten 4 für Plots genutzt werden, 
-            # die letzten 2 Achsen in Zeile 3 für Textbox(en).
+            # Erzeuge 6 Bereiche (3 Zeilen, 2 Spalten)
             fig, axs = plt.subplots(3, 2, figsize=(10, 12))
             fig.suptitle(f"Messung {i}: {shorten_filename(file_with)} vs. {shorten_filename(file_without)}", fontsize=14)
             
@@ -198,7 +192,6 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
             axs[1, 1].set_title("Ohne Säule - Zoom")
             
             # --- Zeile 2 (Index 2): für Text (Ergebnisbox) ---
-            # Beide Achsen ausblenden
             axs[2, 0].axis('off')
             axs[2, 1].axis('off')
             
@@ -206,13 +199,9 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
             textstr = (
                 f"FWHM (mit Säule): {fwhm_with:.4f} min\n"
                 f"FWHM (ohne Säule): {fwhm_without:.4f} min\n"
-                f"σ_obs (mit Säule): {sigma_obs:.4f}\n"
-                f"σ_ext (ohne Säule): {sigma_ext:.4f}\n"
-                f"σ_col (Säule): {sigma_col:.4f}\n"
                 f"FWHM (Säule): {fwhm_col:.4f} min"
             )
             
-            # Platziere den Text in axs[2,0] (linke Achse in der dritten Zeile)
             axs[2, 0].text(
                 0.05, 0.5, textstr,
                 transform=axs[2, 0].transAxes,
@@ -225,28 +214,24 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
             plt.close(fig)
             print(f"Messung {i} ausgewertet: {shorten_filename(file_with)} und {shorten_filename(file_without)}")
         
-        # Letzte Seite: Tabelle mit allen Berechnungen
+        # Letzte Seite: Tabelle mit den Dateinamen und FWHM (Säule)
         fig, ax = plt.subplots(figsize=(12, len(results)*0.5 + 2))
         ax.axis('tight')
         ax.axis('off')
-        table_data = [["Datei mit Säule", "Datei ohne Säule", "FWHM (mit Säule) [min]",
-                       "FWHM (ohne Säule) [min]", "σ_obs", "σ_ext", "σ_col", "FWHM (Säule) [min]"]]
+        
+        # Nur diese 3 Spalten: Datei mit Säule, Datei ohne Säule, FWHM (Säule)
+        table_data = [["Datei mit Säule", "Datei ohne Säule", "FWHM (Säule) [min]"]]
         for res in results:
             table_data.append([
                 res["Datei mit Säule"],
                 res["Datei ohne Säule"],
-                f"{res['FWHM (mit Säule) [min]']:.4f}",
-                f"{res['FWHM (ohne Säule) [min]']:.4f}",
-                f"{res['σ_obs']:.4f}",
-                f"{res['σ_ext']:.4f}",
-                f"{res['σ_col']:.4f}",
                 f"{res['FWHM (Säule) [min]']:.4f}"
             ])
         table = ax.table(cellText=table_data, loc="center", cellLoc='center')
         table.auto_set_font_size(False)
-        table.set_fontsize(6)
+        table.set_fontsize(10)
         table.scale(1, 1.5)
-        ax.set_title("Übersicht der Berechnungen", fontweight="bold")
+        ax.set_title("Übersicht der FWHM (Säule)", fontweight="bold")
         pdf.savefig(fig)
         plt.close(fig)
     
