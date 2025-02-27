@@ -86,7 +86,7 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
             y_with_smooth = savgol_filter(y_with, window_length=window_length_with, polyorder=3)
             y_without_smooth = savgol_filter(y_without, window_length=window_length_without, polyorder=3)
 
-            # Bestimme Peak und Retentionszeit
+            # Peak und Retentionszeit
             peak_idx_with = np.argmax(y_with_smooth)
             peak_idx_without = np.argmax(y_without_smooth)
             retention_time_with = t_with[peak_idx_with]
@@ -98,13 +98,13 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
             fwhm_with = widths_with[0] * (t_with[1]-t_with[0])
             fwhm_without = widths_without[0] * (t_without[1]-t_without[0])
 
-            # w₁/10 analog zu FWHM, aber mit rel_height=0.1
+            # w₁/10 analog zu FWHM, aber mit rel_height=0.9 (wie gewünscht)
             widths_with_10, _, _, _ = peak_widths(y_with_smooth, [peak_idx_with], rel_height=0.9)
             widths_without_10, _, _, _ = peak_widths(y_without_smooth, [peak_idx_without], rel_height=0.9)
             w1_10_with = widths_with_10[0] * (t_with[1]-t_with[0])
             w1_10_without = widths_without_10[0] * (t_without[1]-t_without[0])
 
-            # PGF-Berechnung: direkt aus den oben ermittelten Werten
+            # PGF-Berechnung
             pgf_with = 1.83 * (fwhm_with / w1_10_with) if w1_10_with != 0 else np.nan
             pgf_without = 1.83 * (fwhm_without / w1_10_without) if w1_10_without != 0 else np.nan
             pgf_with_color = "green" if 0.8 <= pgf_with <= 1.15 else "red"
@@ -120,11 +120,10 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
                 sigma_col = 0
             fwhm_col = sigma_col * const
 
-            # Gaussian-Fit mit Offset – verwende ein enges Fit-Fenster (retention_time ± 1·FWHM)
+            # Gaussian-Fit mit Offset – enges Fit-Fenster (retention_time ± 1·FWHM)
             fit_window_factor = 1.0
             mask_fit_with = (t_with >= retention_time_with - fit_window_factor * fwhm_with) & (t_with <= retention_time_with + fit_window_factor * fwhm_with)
             mask_fit_without = (t_without >= retention_time_without - fit_window_factor * fwhm_without) & (t_without <= retention_time_without + fit_window_factor * fwhm_without)
-            # Baseline-Schätzung
             def estimate_baseline(x, y, mask):
                 indices = np.where(mask)[0]
                 if len(indices) < 2:
@@ -164,16 +163,20 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
             zoom_right_without = min(retention_time_without + zoom_margin_without, t_without[-1])
             mask_zoom_without = (t_without >= zoom_left_without) & (t_without <= zoom_right_without)
 
-            # Erzeuge 3×2-Raster (erste zwei Zeilen für Plots, dritte Zeile für Text)
+            # Erzeuge 3×2-Raster: erste zwei Zeilen für Plots, dritte Zeile für Text
             fig, axs = plt.subplots(3, 2, figsize=(10, 12))
             fig.suptitle(f"Messung {i}: {shorten_filename(file_with)} vs. {shorten_filename(file_without)}", fontsize=14)
             
             # Mit Säule – Komplett
             axs[0, 0].plot(t_with, y_with, 'ko', markersize=3, label="Messdaten")
             axs[0, 0].plot(t_with, y_with_smooth, 'b-', linewidth=1, label="Geglättet")
-            axs[0, 0].plot(t_with, gauss_fit_with, 'r-', linewidth=1, label="Gaussian Fit")
-            axs[0, 0].axvline(x=retention_time_with - fwhm_with/2, color='r', linestyle='--', label="FWHM-Grenzen")
-            axs[0, 0].axvline(x=retention_time_with + fwhm_with/2, color='r', linestyle='--')
+            axs[0, 0].plot(t_with, gauss_fit_with, 'g-', linewidth=1, label="Gaussian Fit")
+            # Dezente FWHM-Linien
+            axs[0, 0].axvline(x=retention_time_with - fwhm_with/2, color='gray', linestyle='--', linewidth=0.5, alpha=0.5, label="FWHM-Grenzen")
+            axs[0, 0].axvline(x=retention_time_with + fwhm_with/2, color='gray', linestyle='--', linewidth=0.5, alpha=0.5)
+            # w₁/10-Linien (in Blau)
+            axs[0, 0].axvline(x=retention_time_with - w1_10_with/2, color='blue', linestyle=':', linewidth=0.5, alpha=0.5, label="w₁/10-Grenzen")
+            axs[0, 0].axvline(x=retention_time_with + w1_10_with/2, color='blue', linestyle=':', linewidth=0.5, alpha=0.5)
             axs[0, 0].set_xlabel("Zeit [min]")
             axs[0, 0].set_ylabel("Signal")
             axs[0, 0].legend(fontsize=8)
@@ -182,9 +185,11 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
             # Mit Säule – Zoom
             axs[0, 1].plot(t_with[mask_zoom_with], y_with[mask_zoom_with], 'ko', markersize=3, label="Messdaten (Zoom)")
             axs[0, 1].plot(t_with[mask_zoom_with], y_with_smooth[mask_zoom_with], 'b-', linewidth=1, label="Geglättet (Zoom)")
-            axs[0, 1].plot(t_with[mask_zoom_with], gauss_fit_with[mask_zoom_with], 'r-', linewidth=1, label="Gaussian Fit")
-            axs[0, 1].axvline(x=retention_time_with - fwhm_with/2, color='r', linestyle='--', label="FWHM-Grenzen")
-            axs[0, 1].axvline(x=retention_time_with + fwhm_with/2, color='r', linestyle='--')
+            axs[0, 1].plot(t_with[mask_zoom_with], gauss_fit_with[mask_zoom_with], 'g-', linewidth=1, label="Gaussian Fit")
+            axs[0, 1].axvline(x=retention_time_with - fwhm_with/2, color='gray', linestyle='--', linewidth=0.5, alpha=0.5, label="FWHM-Grenzen")
+            axs[0, 1].axvline(x=retention_time_with + fwhm_with/2, color='gray', linestyle='--', linewidth=0.5, alpha=0.5)
+            axs[0, 1].axvline(x=retention_time_with - w1_10_with/2, color='blue', linestyle=':', linewidth=0.5, alpha=0.5, label="w₁/10-Grenzen")
+            axs[0, 1].axvline(x=retention_time_with + w1_10_with/2, color='blue', linestyle=':', linewidth=0.5, alpha=0.5)
             axs[0, 1].set_xlabel("Zeit [min]")
             axs[0, 1].set_ylabel("Signal")
             axs[0, 1].legend(fontsize=8)
@@ -193,9 +198,11 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
             # Ohne Säule – Komplett
             axs[1, 0].plot(t_without, y_without, 'ko', markersize=3, label="Messdaten")
             axs[1, 0].plot(t_without, y_without_smooth, 'b-', linewidth=1, label="Geglättet")
-            axs[1, 0].plot(t_without, gauss_fit_without, 'r-', linewidth=1, label="Gaussian Fit")
-            axs[1, 0].axvline(x=retention_time_without - fwhm_without/2, color='r', linestyle='--', label="FWHM-Grenzen")
-            axs[1, 0].axvline(x=retention_time_without + fwhm_without/2, color='r', linestyle='--')
+            axs[1, 0].plot(t_without, gauss_fit_without, 'g-', linewidth=1, label="Gaussian Fit")
+            axs[1, 0].axvline(x=retention_time_without - fwhm_without/2, color='gray', linestyle='--', linewidth=0.5, alpha=0.5, label="FWHM-Grenzen")
+            axs[1, 0].axvline(x=retention_time_without + fwhm_without/2, color='gray', linestyle='--', linewidth=0.5, alpha=0.5)
+            axs[1, 0].axvline(x=retention_time_without - w1_10_without/2, color='blue', linestyle=':', linewidth=0.5, alpha=0.5, label="w₁/10-Grenzen")
+            axs[1, 0].axvline(x=retention_time_without + w1_10_without/2, color='blue', linestyle=':', linewidth=0.5, alpha=0.5)
             axs[1, 0].set_xlabel("Zeit [min]")
             axs[1, 0].set_ylabel("Signal")
             axs[1, 0].legend(fontsize=8)
@@ -204,15 +211,17 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
             # Ohne Säule – Zoom
             axs[1, 1].plot(t_without[mask_zoom_without], y_without[mask_zoom_without], 'ko', markersize=3, label="Messdaten (Zoom)")
             axs[1, 1].plot(t_without[mask_zoom_without], y_without_smooth[mask_zoom_without], 'b-', linewidth=1, label="Geglättet (Zoom)")
-            axs[1, 1].plot(t_without[mask_zoom_without], gauss_fit_without[mask_zoom_without], 'r-', linewidth=1, label="Gaussian Fit")
-            axs[1, 1].axvline(x=retention_time_without - fwhm_without/2, color='r', linestyle='--', label="FWHM-Grenzen")
-            axs[1, 1].axvline(x=retention_time_without + fwhm_without/2, color='r', linestyle='--')
+            axs[1, 1].plot(t_without[mask_zoom_without], gauss_fit_without[mask_zoom_without], 'g-', linewidth=1, label="Gaussian Fit")
+            axs[1, 1].axvline(x=retention_time_without - fwhm_without/2, color='gray', linestyle='--', linewidth=0.5, alpha=0.5, label="FWHM-Grenzen")
+            axs[1, 1].axvline(x=retention_time_without + fwhm_without/2, color='gray', linestyle='--', linewidth=0.5, alpha=0.5)
+            axs[1, 1].axvline(x=retention_time_without - w1_10_without/2, color='blue', linestyle=':', linewidth=0.5, alpha=0.5, label="w₁/10-Grenzen")
+            axs[1, 1].axvline(x=retention_time_without + w1_10_without/2, color='blue', linestyle=':', linewidth=0.5, alpha=0.5)
             axs[1, 1].set_xlabel("Zeit [min]")
             axs[1, 1].set_ylabel("Signal")
             axs[1, 1].legend(fontsize=8)
             axs[1, 1].set_title("Ohne Säule - Zoom")
             
-            # Ergebnisbox in der 3. Zeile – zeige verwendete Zahlen zur PGF-Berechnung
+            # Ergebnisbox in Zeile 3 – angepasster Text
             axs[2, 0].axis('off')
             axs[2, 1].axis('off')
             result_text = (
@@ -226,7 +235,7 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
                 f"  w₁/10: {w1_10_without:.4f} min\n"
                 f"  PGF = 1.83 * ({fwhm_without:.4f} / {w1_10_without:.4f}) = {pgf_without:.2f}\n\n"
                 f"FWHM (Säule): {fwhm_col:.4f} min\n"
-                "Sollte zwischen 0.8 und 1.15 liegen!"
+                "Akzeptanzkriterium: 0.8 < PGF < 1.15"
             )
             axs[2, 0].text(0.05, 0.5, result_text, transform=axs[2, 0].transAxes,
                            fontsize=10, va="center", bbox=dict(facecolor='white', alpha=0.5))
