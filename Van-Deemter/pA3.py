@@ -153,12 +153,12 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
                 "FWHM (Säule) [min]": fwhm_col
             })
 
-            # Bestimme Zoom-Bereiche
-            zoom_margin_with = fwhm_with
+            # Zoom-Bereiche: Zoom-Faktor erhöhen, damit mehr vom Peak zu sehen ist (1.5*FWHM)
+            zoom_margin_with = 1.5 * fwhm_with
             zoom_left_with = max(retention_time_with - zoom_margin_with, t_with[0])
             zoom_right_with = min(retention_time_with + zoom_margin_with, t_with[-1])
             mask_zoom_with = (t_with >= zoom_left_with) & (t_with <= zoom_right_with)
-            zoom_margin_without = fwhm_without
+            zoom_margin_without = 1.5 * fwhm_without
             zoom_left_without = max(retention_time_without - zoom_margin_without, t_without[0])
             zoom_right_without = min(retention_time_without + zoom_margin_without, t_without[-1])
             mask_zoom_without = (t_without >= zoom_left_without) & (t_without <= zoom_right_without)
@@ -170,13 +170,12 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
             # Mit Säule – Komplett
             axs[0, 0].plot(t_with, y_with, 'ko', markersize=3, label="Messdaten")
             axs[0, 0].plot(t_with, y_with_smooth, 'b-', linewidth=1, label="Geglättet")
-            axs[0, 0].plot(t_with, gauss_fit_with, 'g-', linewidth=1, label="Gaussian Fit")
-            # Dezente FWHM-Linien
-            axs[0, 0].axvline(x=retention_time_with - fwhm_with/2, color='gray', linestyle='--', linewidth=0.5, alpha=0.5, label="FWHM-Grenzen")
-            axs[0, 0].axvline(x=retention_time_with + fwhm_with/2, color='gray', linestyle='--', linewidth=0.5, alpha=0.5)
-            # w₁/10-Linien (in Blau)
-            axs[0, 0].axvline(x=retention_time_with - w1_10_with/2, color='blue', linestyle=':', linewidth=0.5, alpha=0.5, label="w₁/10-Grenzen")
-            axs[0, 0].axvline(x=retention_time_with + w1_10_with/2, color='blue', linestyle=':', linewidth=0.5, alpha=0.5)
+            axs[0, 0].plot(t_with, gauss_fit_with, 'r-', linewidth=1, label="Gaussian Fit")
+            # Dickere FWHM-Linien (grau) und w₁/10-Linien (blau)
+            axs[0, 0].axvline(x=retention_time_with - fwhm_with/2, color='gray', linestyle='--', linewidth=1.0, alpha=0.7, label="FWHM-Grenzen")
+            axs[0, 0].axvline(x=retention_time_with + fwhm_with/2, color='gray', linestyle='--', linewidth=1.0, alpha=0.7)
+            axs[0, 0].axvline(x=retention_time_with - w1_10_with/2, color='blue', linestyle=':', linewidth=1.0, alpha=0.7, label="w₁/10-Grenzen")
+            axs[0, 0].axvline(x=retention_time_with + w1_10_with/2, color='blue', linestyle=':', linewidth=1.0, alpha=0.7)
             axs[0, 0].set_xlabel("Zeit [min]")
             axs[0, 0].set_ylabel("Signal")
             axs[0, 0].legend(fontsize=8)
@@ -185,11 +184,11 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
             # Mit Säule – Zoom
             axs[0, 1].plot(t_with[mask_zoom_with], y_with[mask_zoom_with], 'ko', markersize=3, label="Messdaten (Zoom)")
             axs[0, 1].plot(t_with[mask_zoom_with], y_with_smooth[mask_zoom_with], 'b-', linewidth=1, label="Geglättet (Zoom)")
-            axs[0, 1].plot(t_with[mask_zoom_with], gauss_fit_with[mask_zoom_with], 'g-', linewidth=1, label="Gaussian Fit")
-            axs[0, 1].axvline(x=retention_time_with - fwhm_with/2, color='gray', linestyle='--', linewidth=0.5, alpha=0.5, label="FWHM-Grenzen")
-            axs[0, 1].axvline(x=retention_time_with + fwhm_with/2, color='gray', linestyle='--', linewidth=0.5, alpha=0.5)
-            axs[0, 1].axvline(x=retention_time_with - w1_10_with/2, color='blue', linestyle=':', linewidth=0.5, alpha=0.5, label="w₁/10-Grenzen")
-            axs[0, 1].axvline(x=retention_time_with + w1_10_with/2, color='blue', linestyle=':', linewidth=0.5, alpha=0.5)
+            axs[0, 1].plot(t_with[mask_zoom_with], gauss_fit_with[mask_zoom_with], 'r-', linewidth=1, label="Gaussian Fit")
+            axs[0, 1].axvline(x=retention_time_with - fwhm_with/2, color='gray', linestyle='--', linewidth=1.0, alpha=0.7, label="FWHM-Grenzen")
+            axs[0, 1].axvline(x=retention_time_with + fwhm_with/2, color='gray', linestyle='--', linewidth=1.0, alpha=0.7)
+            axs[0, 1].axvline(x=retention_time_with - w1_10_with/2, color='blue', linestyle=':', linewidth=1.0, alpha=0.7, label="w₁/10-Grenzen")
+            axs[0, 1].axvline(x=retention_time_with + w1_10_with/2, color='blue', linestyle=':', linewidth=1.0, alpha=0.7)
             axs[0, 1].set_xlabel("Zeit [min]")
             axs[0, 1].set_ylabel("Signal")
             axs[0, 1].legend(fontsize=8)
@@ -198,11 +197,11 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
             # Ohne Säule – Komplett
             axs[1, 0].plot(t_without, y_without, 'ko', markersize=3, label="Messdaten")
             axs[1, 0].plot(t_without, y_without_smooth, 'b-', linewidth=1, label="Geglättet")
-            axs[1, 0].plot(t_without, gauss_fit_without, 'g-', linewidth=1, label="Gaussian Fit")
-            axs[1, 0].axvline(x=retention_time_without - fwhm_without/2, color='gray', linestyle='--', linewidth=0.5, alpha=0.5, label="FWHM-Grenzen")
-            axs[1, 0].axvline(x=retention_time_without + fwhm_without/2, color='gray', linestyle='--', linewidth=0.5, alpha=0.5)
-            axs[1, 0].axvline(x=retention_time_without - w1_10_without/2, color='blue', linestyle=':', linewidth=0.5, alpha=0.5, label="w₁/10-Grenzen")
-            axs[1, 0].axvline(x=retention_time_without + w1_10_without/2, color='blue', linestyle=':', linewidth=0.5, alpha=0.5)
+            axs[1, 0].plot(t_without, gauss_fit_without, 'r-', linewidth=1, label="Gaussian Fit")
+            axs[1, 0].axvline(x=retention_time_without - fwhm_without/2, color='gray', linestyle='--', linewidth=1.0, alpha=0.7, label="FWHM-Grenzen")
+            axs[1, 0].axvline(x=retention_time_without + fwhm_without/2, color='gray', linestyle='--', linewidth=1.0, alpha=0.7)
+            axs[1, 0].axvline(x=retention_time_without - w1_10_without/2, color='blue', linestyle=':', linewidth=1.0, alpha=0.7, label="w₁/10-Grenzen")
+            axs[1, 0].axvline(x=retention_time_without + w1_10_without/2, color='blue', linestyle=':', linewidth=1.0, alpha=0.7)
             axs[1, 0].set_xlabel("Zeit [min]")
             axs[1, 0].set_ylabel("Signal")
             axs[1, 0].legend(fontsize=8)
@@ -211,17 +210,17 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
             # Ohne Säule – Zoom
             axs[1, 1].plot(t_without[mask_zoom_without], y_without[mask_zoom_without], 'ko', markersize=3, label="Messdaten (Zoom)")
             axs[1, 1].plot(t_without[mask_zoom_without], y_without_smooth[mask_zoom_without], 'b-', linewidth=1, label="Geglättet (Zoom)")
-            axs[1, 1].plot(t_without[mask_zoom_without], gauss_fit_without[mask_zoom_without], 'g-', linewidth=1, label="Gaussian Fit")
-            axs[1, 1].axvline(x=retention_time_without - fwhm_without/2, color='gray', linestyle='--', linewidth=0.5, alpha=0.5, label="FWHM-Grenzen")
-            axs[1, 1].axvline(x=retention_time_without + fwhm_without/2, color='gray', linestyle='--', linewidth=0.5, alpha=0.5)
-            axs[1, 1].axvline(x=retention_time_without - w1_10_without/2, color='blue', linestyle=':', linewidth=0.5, alpha=0.5, label="w₁/10-Grenzen")
-            axs[1, 1].axvline(x=retention_time_without + w1_10_without/2, color='blue', linestyle=':', linewidth=0.5, alpha=0.5)
+            axs[1, 1].plot(t_without[mask_zoom_without], gauss_fit_without[mask_zoom_without], 'r-', linewidth=1, label="Gaussian Fit")
+            axs[1, 1].axvline(x=retention_time_without - fwhm_without/2, color='gray', linestyle='--', linewidth=1.0, alpha=0.7, label="FWHM-Grenzen")
+            axs[1, 1].axvline(x=retention_time_without + fwhm_without/2, color='gray', linestyle='--', linewidth=1.0, alpha=0.7)
+            axs[1, 1].axvline(x=retention_time_without - w1_10_without/2, color='blue', linestyle=':', linewidth=1.0, alpha=0.7, label="w₁/10-Grenzen")
+            axs[1, 1].axvline(x=retention_time_without + w1_10_without/2, color='blue', linestyle=':', linewidth=1.0, alpha=0.7)
             axs[1, 1].set_xlabel("Zeit [min]")
             axs[1, 1].set_ylabel("Signal")
             axs[1, 1].legend(fontsize=8)
             axs[1, 1].set_title("Ohne Säule - Zoom")
             
-            # Ergebnisbox in Zeile 3 – angepasster Text
+            # Ergebnisbox in der 3. Zeile – angepasster Text
             axs[2, 0].axis('off')
             axs[2, 1].axis('off')
             result_text = (
