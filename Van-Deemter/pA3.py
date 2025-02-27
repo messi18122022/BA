@@ -191,7 +191,7 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
             ])
         table = ax.table(cellText=table_data, loc="center", cellLoc='center')
         table.auto_set_font_size(False)
-        table.set_fontsize(10)
+        table.set_fontsize(6)  # Schriftgröße der Tabelle auf 8 Punkte reduziert
         table.scale(1, 1.5)
         ax.set_title("Übersicht der Berechnungen", fontweight="bold")
         pdf.savefig(fig)
