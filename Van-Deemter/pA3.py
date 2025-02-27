@@ -13,12 +13,12 @@ Berechnungsgrundlagen:
     wobei σ_obs aus der Messung mit Säule und σ_ext aus der Messung ohne Säule berechnet wird.
   • Daraus folgt: σ_col = √(σ_obs² - σ_ext²) und w₁/₂ (Säule) = σ_col · √(8·ln2)
   
-  Zusätzlich wird eine Gaussian-Kurve (rot) gefittet, um die Peakform zu beurteilen.
-  Der Peak Gaussian Factor (PGF) wird berechnet nach:
+  Zusätzlich wird eine Gaussian-Kurve (rot) gefittet, wobei die Baseline anhand der Messdaten
+  geschätzt wird. Der Peak Gaussian Factor (PGF) wird berechnet nach:
   
       PGF = 1.83 · (w₁/₂ / w₁/10)
       
-  Dabei sollte PGF idealerweise zwischen 0.8 und 1.15 liegen.
+  Der PGF sollte idealerweise zwischen 0.8 und 1.15 liegen.
   
 Pro Dateipaar wird eine Seite im PDF-Report erstellt, die ein 3×2-Raster enthält:
   - 1. Zeile:   Mit Säule (links: Komplett, rechts: Zoom)
@@ -72,9 +72,9 @@ def read_data(filename):
         raise ValueError(f"Die Datei {filename} enthält keine gültigen 2-spaltigen Daten.")
     return data[:,0], data[:,1]  # t, y
 
-def gaussian(x, A, mu, sigma):
-    """Definition einer Gaußfunktion."""
-    return A * np.exp(-((x - mu)**2) / (2 * sigma**2))
+def gaussian_offset(x, A, mu, sigma, B):
+    """Gaussian-Funktion mit Offset (Baseline)."""
+    return B + A * np.exp(-((x - mu)**2) / (2 * sigma**2))
 
 def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf"):
     """
@@ -82,7 +82,7 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
       - Liest die Messungen mit und ohne Säule ein.
       - Glättet die Signale mittels Savitzky-Golay-Filter.
       - Bestimmt das Peakmaximum, die FWHM und w₁/10.
-      - Berechnet PGF und passt eine Gaussian-Kurve (rot) an.
+      - Berechnet PGF und passt eine Gaussian-Kurve (rot) an, wobei die Baseline geschätzt wird.
       - Visualisiert die Ergebnisse in einem 3×2-Raster und speichert sie in einem PDF-Report.
     """
     if len(files_with) != len(files_without):
@@ -144,33 +144,46 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
                 sigma_col = 0
             fwhm_col = sigma_col * const
             
-            # Gaussian-Fit für "mit Säule"
-            mask_fit_with = (t_with >= retention_time_with - 2*fwhm_with) & (t_with <= retention_time_with + 2*fwhm_with)
-            if np.sum(mask_fit_with) < 3:
-                mask_fit_with = np.ones_like(t_with, dtype=bool)
+            # Definiere ein enges Fit-Fenster (retention_time ± 1·FWHM)
+            fit_window_factor = 1.0
+            mask_fit_with = (t_with >= retention_time_with - fit_window_factor * fwhm_with) & (t_with <= retention_time_with + fit_window_factor * fwhm_with)
+            mask_fit_without = (t_without >= retention_time_without - fit_window_factor * fwhm_without) & (t_without <= retention_time_without + fit_window_factor * fwhm_without)
+            
+            # Schätze die Baseline (B) aus den Rändern des Fit-Fensters
+            def estimate_baseline(x, y, mask):
+                indices = np.where(mask)[0]
+                if len(indices) < 2:
+                    return np.min(y)
+                edge_count = max(1, int(0.1 * len(indices)))
+                return np.mean(np.concatenate((y[indices[:edge_count]], y[indices[-edge_count:]])))
+            
+            B0_with = estimate_baseline(t_with, y_with_smooth, mask_fit_with)
+            B0_without = estimate_baseline(t_without, y_without_smooth, mask_fit_without)
+            
+            # Startwerte für den Fit: A0 = Peak - Baseline, mu = retention_time, sigma aus FWHM, B = Baseline
+            A0_with = y_with_smooth[peak_idx_with] - B0_with
+            sigma0_with = fwhm_with / (2 * np.sqrt(2 * np.log(2)))
+            p0_with = [A0_with, retention_time_with, sigma0_with, B0_with]
+            
+            A0_without = y_without_smooth[peak_idx_without] - B0_without
+            sigma0_without = fwhm_without / (2 * np.sqrt(2 * np.log(2)))
+            p0_without = [A0_without, retention_time_without, sigma0_without, B0_without]
+            
+            # Gaussian-Fit mit Offset für "mit Säule"
             try:
-                popt_with, _ = curve_fit(gaussian, t_with[mask_fit_with], y_with_smooth[mask_fit_with],
-                                         p0=[y_with_smooth[peak_idx_with], retention_time_with, fwhm_with/(2*np.sqrt(2*np.log(2)))])
-                gauss_fit_with = gaussian(t_with, *popt_with)
-                gauss_fit_zoom_with = gaussian(t_with[mask_fit_with], *popt_with)
+                popt_with, _ = curve_fit(gaussian_offset, t_with[mask_fit_with], y_with_smooth[mask_fit_with], p0=p0_with)
+                gauss_fit_with = gaussian_offset(t_with, *popt_with)
             except Exception as e:
                 print("Gaussian fit failed for mit Säule:", e)
                 gauss_fit_with = np.zeros_like(t_with)
-                gauss_fit_zoom_with = np.zeros_like(t_with[mask_fit_with])
             
-            # Gaussian-Fit für "ohne Säule"
-            mask_fit_without = (t_without >= retention_time_without - 2*fwhm_without) & (t_without <= retention_time_without + 2*fwhm_without)
-            if np.sum(mask_fit_without) < 3:
-                mask_fit_without = np.ones_like(t_without, dtype=bool)
+            # Gaussian-Fit mit Offset für "ohne Säule"
             try:
-                popt_without, _ = curve_fit(gaussian, t_without[mask_fit_without], y_without_smooth[mask_fit_without],
-                                            p0=[y_without_smooth[peak_idx_without], retention_time_without, fwhm_without/(2*np.sqrt(2*np.log(2)))])
-                gauss_fit_without = gaussian(t_without, *popt_without)
-                gauss_fit_zoom_without = gaussian(t_without[mask_fit_without], *popt_without)
+                popt_without, _ = curve_fit(gaussian_offset, t_without[mask_fit_without], y_without_smooth[mask_fit_without], p0=p0_without)
+                gauss_fit_without = gaussian_offset(t_without, *popt_without)
             except Exception as e:
                 print("Gaussian fit failed for ohne Säule:", e)
                 gauss_fit_without = np.zeros_like(t_without)
-                gauss_fit_zoom_without = np.zeros_like(t_without[mask_fit_without])
             
             # Ergebnisse speichern (nur Dateinamen und FWHM (Säule) für die Abschlusstabelle)
             results.append({
@@ -179,7 +192,7 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
                 "FWHM (Säule) [min]": fwhm_col
             })
             
-            # Zoom-Bereiche (wie bisher)
+            # Bestimme Zoom-Bereiche (wie bisher)
             zoom_margin_with = fwhm_with
             zoom_left_with = max(retention_time_with - zoom_margin_with, t_with[0])
             zoom_right_with = min(retention_time_with + zoom_margin_with, t_with[-1])
@@ -242,12 +255,12 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
             axs[2, 0].axis('off')
             axs[2, 1].axis('off')
             # Basisinformationen
-            textstr = (
+            base_text = (
                 f"FWHM (mit Säule): {fwhm_with:.4f} min\n"
                 f"FWHM (ohne Säule): {fwhm_without:.4f} min\n"
                 f"FWHM (Säule): {fwhm_col:.4f} min"
             )
-            axs[2, 0].text(0.05, 0.6, textstr,
+            axs[2, 0].text(0.05, 0.6, base_text,
                            transform=axs[2, 0].transAxes,
                            fontsize=10, va="center",
                            bbox=dict(facecolor='white', alpha=0.5))
