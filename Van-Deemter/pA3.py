@@ -13,8 +13,10 @@ Berechnungsgrundlagen:
     wobei σ_obs aus der Messung mit Säule und σ_ext aus der Messung ohne Säule berechnet wird.
   • Daraus folgt: σ_col = √(σ_obs² - σ_ext²) und w₁/₂ (Säule) = σ_col · √(8·ln2)
   
-Für jedes Dateipaar wird ein Plot mit zwei Subplots (Messung mit und ohne Säule) erzeugt.
-Auf der letzten Seite des PDF-Reports wird eine Tabelle mit den relevanten Berechnungen erstellt.
+Pro Dateipaar wird eine Seite im PDF-Report erstellt, die 4 Plots enthält:
+  - Oben: Messung mit Säule (links: komplettes Chromatogramm, rechts: Peak-Zoom)
+  - Unten: Messung ohne Säule (links: komplettes Chromatogramm, rechts: Peak-Zoom)
+Auf der letzten Seite wird eine Tabelle mit allen Berechnungsergebnissen dargestellt.
 """
 
 import numpy as np
@@ -67,7 +69,7 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
       - Glättet die Signale mittels Savitzky-Golay-Filter.
       - Bestimmt das Peakmaximum und die FWHM.
       - Rechnet die FWHM in σ um und subtrahiert die extrakolumnären Einflüsse.
-      - Visualisiert die Ergebnisse und speichert sie in einem PDF-Report.
+      - Visualisiert die Ergebnisse in vier Plots pro Messpaar und speichert sie in einem PDF-Report.
     """
     if len(files_with) != len(files_without):
         print("Die Anzahl der Dateien mit Säule und ohne Säule stimmt nicht überein.")
@@ -86,7 +88,7 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
                 print(f"Fehler beim Lesen der Dateien {file_with} oder {file_without}: {e}")
                 continue
             
-            # Bestimme Fensterlänge für den Savitzky-Golay-Filter (muss ungerade sein)
+            # Fensterlängen für den Savitzky-Golay-Filter (muss ungerade sein)
             window_length_with = 11 if len(y_with) >= 11 else (len(y_with) // 2) * 2 + 1
             window_length_without = 11 if len(y_without) >= 11 else (len(y_without) // 2) * 2 + 1
             
@@ -94,15 +96,35 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
             y_with_smooth = savgol_filter(y_with, window_length=window_length_with, polyorder=3)
             y_without_smooth = savgol_filter(y_without, window_length=window_length_without, polyorder=3)
             
-            # Bestimme das Peakmaximum in beiden geglätteten Signalen
+            # Bestimme das Peakmaximum und Retentionszeit in beiden Signalen
             peak_idx_with = np.argmax(y_with_smooth)
             peak_idx_without = np.argmax(y_without_smooth)
+            retention_time_with = t_with[peak_idx_with]
+            retention_time_without = t_without[peak_idx_without]
             
-            # Berechne die FWHM (Halbwertsbreite) beider Signale
+            # Berechne die FWHM (Halbwertsbreite)
             widths_with, _, _, _ = peak_widths(y_with_smooth, [peak_idx_with], rel_height=0.5)
             widths_without, _, _, _ = peak_widths(y_without_smooth, [peak_idx_without], rel_height=0.5)
             fwhm_with = widths_with[0] * (t_with[1]-t_with[0])
             fwhm_without = widths_without[0] * (t_without[1]-t_without[0])
+            
+            # Zoom-Berechnung für die "mit Säule" Messung
+            zoom_margin_with = fwhm_with
+            zoom_left_with = max(retention_time_with - zoom_margin_with, t_with[0])
+            zoom_right_with = min(retention_time_with + zoom_margin_with, t_with[-1])
+            mask_zoom_with = (t_with >= zoom_left_with) & (t_with <= zoom_right_with)
+            # Berechne ggf. angepasste Fensterlänge für den Zoombereich
+            window_length_zoom_with = 11 if len(y_with[mask_zoom_with]) >= 11 else (len(y_with[mask_zoom_with]) // 2) * 2 + 1
+            y_smooth_zoom_with = savgol_filter(y_with[mask_zoom_with], window_length=window_length_zoom_with, polyorder=3)
+            
+            # Zoom-Berechnung für die "ohne Säule" Messung
+            zoom_margin_without = fwhm_without
+            zoom_left_without = max(retention_time_without - zoom_margin_without, t_without[0])
+            zoom_right_without = min(retention_time_without + zoom_margin_without, t_without[-1])
+            mask_zoom_without = (t_without >= zoom_left_without) & (t_without <= t_without[-1])
+            mask_zoom_without = (t_without >= zoom_left_without) & (t_without <= zoom_right_without)
+            window_length_zoom_without = 11 if len(y_without[mask_zoom_without]) >= 11 else (len(y_without[mask_zoom_without]) // 2) * 2 + 1
+            y_smooth_zoom_without = savgol_filter(y_without[mask_zoom_without], window_length=window_length_zoom_without, polyorder=3)
             
             # Umrechnung in σ-Werte
             sigma_obs = fwhm_with / const
@@ -130,31 +152,51 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
                 "FWHM (Säule) [min]": fwhm_col
             })
             
-            # Visualisierung: Zwei Subplots für das jeweilige Paar
-            fig, axs = plt.subplots(2, 1, figsize=(8, 10))
+            # Erzeuge 4 Plots in einem 2x2 Raster
+            fig, axs = plt.subplots(2, 2, figsize=(12, 10))
             fig.suptitle(f"Messung {i}: {shorten_filename(file_with)} vs. {shorten_filename(file_without)}", fontsize=14)
             
-            # Plot: Messung mit Säule
-            axs[0].plot(t_with, y_with, 'ko', markersize=3, label="Messdaten (mit Säule)")
-            axs[0].plot(t_with, y_with_smooth, 'b-', linewidth=1, label="Geglättet")
-            axs[0].axvline(x=t_with[peak_idx_with] - fwhm_with/2, color='r', linestyle='--', label="FWHM-Grenzen")
-            axs[0].axvline(x=t_with[peak_idx_with] + fwhm_with/2, color='r', linestyle='--')
-            axs[0].set_xlabel("Zeit [min]")
-            axs[0].set_ylabel("Signal")
-            axs[0].legend()
-            axs[0].set_title("Mit Säule")
+            # --- Oben links: Mit Säule - Komplettes Chromatogramm ---
+            axs[0, 0].plot(t_with, y_with, 'ko', markersize=3, label="Messdaten")
+            axs[0, 0].plot(t_with, y_with_smooth, 'b-', linewidth=1, label="Geglättet")
+            axs[0, 0].axvline(x=retention_time_with - fwhm_with/2, color='r', linestyle='--', label="FWHM-Grenzen")
+            axs[0, 0].axvline(x=retention_time_with + fwhm_with/2, color='r', linestyle='--')
+            axs[0, 0].set_xlabel("Zeit [min]")
+            axs[0, 0].set_ylabel("Signal")
+            axs[0, 0].legend()
+            axs[0, 0].set_title("Mit Säule - Komplett")
             
-            # Plot: Messung ohne Säule
-            axs[1].plot(t_without, y_without, 'ko', markersize=3, label="Messdaten (ohne Säule)")
-            axs[1].plot(t_without, y_without_smooth, 'b-', linewidth=1, label="Geglättet")
-            axs[1].axvline(x=t_without[peak_idx_without] - fwhm_without/2, color='r', linestyle='--', label="FWHM-Grenzen")
-            axs[1].axvline(x=t_without[peak_idx_without] + fwhm_without/2, color='r', linestyle='--')
-            axs[1].set_xlabel("Zeit [min]")
-            axs[1].set_ylabel("Signal")
-            axs[1].legend()
-            axs[1].set_title("Ohne Säule")
+            # --- Oben rechts: Mit Säule - Zoom auf den Peak ---
+            axs[0, 1].plot(t_with[mask_zoom_with], y_with[mask_zoom_with], 'ko', markersize=3, label="Messdaten (Zoom)")
+            axs[0, 1].plot(t_with[mask_zoom_with], y_smooth_zoom_with, 'b-', linewidth=1, label="Geglättet (Zoom)")
+            axs[0, 1].axvline(x=retention_time_with - fwhm_with/2, color='r', linestyle='--', label="FWHM-Grenzen")
+            axs[0, 1].axvline(x=retention_time_with + fwhm_with/2, color='r', linestyle='--')
+            axs[0, 1].set_xlabel("Zeit [min]")
+            axs[0, 1].set_ylabel("Signal")
+            axs[0, 1].legend()
+            axs[0, 1].set_title("Mit Säule - Zoom")
             
-            # Textbox mit den berechneten Werten
+            # --- Unten links: Ohne Säule - Komplettes Chromatogramm ---
+            axs[1, 0].plot(t_without, y_without, 'ko', markersize=3, label="Messdaten")
+            axs[1, 0].plot(t_without, y_without_smooth, 'b-', linewidth=1, label="Geglättet")
+            axs[1, 0].axvline(x=retention_time_without - fwhm_without/2, color='r', linestyle='--', label="FWHM-Grenzen")
+            axs[1, 0].axvline(x=retention_time_without + fwhm_without/2, color='r', linestyle='--')
+            axs[1, 0].set_xlabel("Zeit [min]")
+            axs[1, 0].set_ylabel("Signal")
+            axs[1, 0].legend()
+            axs[1, 0].set_title("Ohne Säule - Komplett")
+            
+            # --- Unten rechts: Ohne Säule - Zoom auf den Peak ---
+            axs[1, 1].plot(t_without[mask_zoom_without], y_without[mask_zoom_without], 'ko', markersize=3, label="Messdaten (Zoom)")
+            axs[1, 1].plot(t_without[mask_zoom_without], y_smooth_zoom_without, 'b-', linewidth=1, label="Geglättet (Zoom)")
+            axs[1, 1].axvline(x=retention_time_without - fwhm_without/2, color='r', linestyle='--', label="FWHM-Grenzen")
+            axs[1, 1].axvline(x=retention_time_without + fwhm_without/2, color='r', linestyle='--')
+            axs[1, 1].set_xlabel("Zeit [min]")
+            axs[1, 1].set_ylabel("Signal")
+            axs[1, 1].legend()
+            axs[1, 1].set_title("Ohne Säule - Zoom")
+            
+            # Textbox mit den berechneten Werten (unten überlappend)
             textstr = (
                 f"FWHM (mit Säule): {fwhm_with:.4f} min\n"
                 f"FWHM (ohne Säule): {fwhm_without:.4f} min\n"
@@ -163,7 +205,7 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
                 f"σ_col: {sigma_col:.4f}\n"
                 f"FWHM (Säule): {fwhm_col:.4f} min"
             )
-            fig.text(0.15, 0.02, textstr, fontsize=10,
+            fig.text(0.15, 0.01, textstr, fontsize=10,
                      bbox=dict(facecolor='white', alpha=0.5))
             
             pdf.savefig(fig)
@@ -174,10 +216,8 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
         fig, ax = plt.subplots(figsize=(12, len(results)*0.5 + 2))
         ax.axis('tight')
         ax.axis('off')
-        # Tabellenkopf
         table_data = [["Datei mit Säule", "Datei ohne Säule", "FWHM (mit Säule) [min]",
                        "FWHM (ohne Säule) [min]", "σ_obs", "σ_ext", "σ_col", "FWHM (Säule) [min]"]]
-        # Füge die Ergebnisse hinzu
         for res in results:
             table_data.append([
                 res["Datei mit Säule"],
@@ -191,7 +231,7 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
             ])
         table = ax.table(cellText=table_data, loc="center", cellLoc='center')
         table.auto_set_font_size(False)
-        table.set_fontsize(6)  # Schriftgröße der Tabelle auf 8 Punkte reduziert
+        table.set_fontsize(8)
         table.scale(1, 1.5)
         ax.set_title("Übersicht der Berechnungen", fontweight="bold")
         pdf.savefig(fig)
@@ -203,7 +243,6 @@ if __name__ == "__main__":
     root = tk.Tk()
     root.withdraw()
     
-    # Auswahl der Dateien: Messungen mit Säule
     files_with = filedialog.askopenfilenames(
         title="Wähle die Dateien aus (Messungen mit Säule)",
         filetypes=[("Textdateien", "*.txt"), ("Alle Dateien", "*.*")]
@@ -213,7 +252,6 @@ if __name__ == "__main__":
         print("Keine Dateien für Messungen mit Säule ausgewählt.")
         sys.exit(1)
     
-    # Auswahl der Dateien: Messungen ohne Säule (Reihenfolge muss übereinstimmen)
     files_without = filedialog.askopenfilenames(
         title="Wähle die Dateien aus (Messungen ohne Säule) in derselben Reihenfolge",
         filetypes=[("Textdateien", "*.txt"), ("Alle Dateien", "*.*")]
