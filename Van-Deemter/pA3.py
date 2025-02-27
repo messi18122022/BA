@@ -38,7 +38,7 @@ from tkinter import filedialog
 import os
 import sys
 
-# LaTeX aktivieren, damit wir \textcolor verwenden können
+# LaTeX aktivieren, damit \textcolor genutzt werden kann
 plt.rc('text', usetex=True)
 
 def shorten_filename(filename):
@@ -107,7 +107,7 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
             w1_10_with = widths_with_10[0] * (t_with[1]-t_with[0])
             w1_10_without = widths_without_10[0] * (t_without[1]-t_without[0])
 
-            # PGF-Berechnung
+            # PGF-Berechnung (nur das Resultat)
             pgf_with = 1.83 * (fwhm_with / w1_10_with) if w1_10_with != 0 else np.nan
             pgf_without = 1.83 * (fwhm_without / w1_10_without) if w1_10_without != 0 else np.nan
             pgf_with_color = "green" if 0.8 <= pgf_with <= 1.15 else "red"
@@ -156,7 +156,7 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
                 "FWHM (Säule) [min]": fwhm_col
             })
 
-            # Zoom-Bereiche: Zoom-Faktor 1.5 * FWHM
+            # Zoom-Bereiche: Zoom-Faktor 1.5 * FWHM (mehr vom Peak sichtbar)
             zoom_margin_with = 1.5 * fwhm_with
             zoom_left_with = max(retention_time_with - zoom_margin_with, t_with[0])
             zoom_right_with = min(retention_time_with + zoom_margin_with, t_with[-1])
@@ -176,7 +176,7 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
             axs[0, 0].plot(t_with, gauss_fit_with, 'r-', linewidth=1, label="Gaussian Fit")
             axs[0, 0].axvline(x=retention_time_with - fwhm_with/2, color='gray', linestyle='--', linewidth=1.0, alpha=0.7, label="FWHM-Grenzen")
             axs[0, 0].axvline(x=retention_time_with + fwhm_with/2, color='gray', linestyle='--', linewidth=1.0, alpha=0.7)
-            axs[0, 0].axvline(x=retention_time_with - w1_10_with/2, color='blue', linestyle=':', linewidth=1.0, alpha=0.7, label="w₁/10-Grenzen")
+            axs[0, 0].axvline(x=retention_time_with - w1_10_with/2, color='blue', linestyle=':', linewidth=1.0, alpha=0.7, label="w$_{1}$/10-Grenzen")
             axs[0, 0].axvline(x=retention_time_with + w1_10_with/2, color='blue', linestyle=':', linewidth=1.0, alpha=0.7)
             axs[0, 0].set_xlabel("Zeit [min]")
             axs[0, 0].set_ylabel("Signal")
@@ -189,7 +189,7 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
             axs[0, 1].plot(t_with[mask_zoom_with], gauss_fit_with[mask_zoom_with], 'r-', linewidth=1, label="Gaussian Fit")
             axs[0, 1].axvline(x=retention_time_with - fwhm_with/2, color='gray', linestyle='--', linewidth=1.0, alpha=0.7, label="FWHM-Grenzen")
             axs[0, 1].axvline(x=retention_time_with + fwhm_with/2, color='gray', linestyle='--', linewidth=1.0, alpha=0.7)
-            axs[0, 1].axvline(x=retention_time_with - w1_10_with/2, color='blue', linestyle=':', linewidth=1.0, alpha=0.7, label="w₁/10-Grenzen")
+            axs[0, 1].axvline(x=retention_time_with - w1_10_with/2, color='blue', linestyle=':', linewidth=1.0, alpha=0.7, label="w$_{1}$/10-Grenzen")
             axs[0, 1].axvline(x=retention_time_with + w1_10_with/2, color='blue', linestyle=':', linewidth=1.0, alpha=0.7)
             axs[0, 1].set_xlabel("Zeit [min]")
             axs[0, 1].set_ylabel("Signal")
@@ -202,7 +202,7 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
             axs[1, 0].plot(t_without, gauss_fit_without, 'r-', linewidth=1, label="Gaussian Fit")
             axs[1, 0].axvline(x=retention_time_without - fwhm_without/2, color='gray', linestyle='--', linewidth=1.0, alpha=0.7, label="FWHM-Grenzen")
             axs[1, 0].axvline(x=retention_time_without + fwhm_without/2, color='gray', linestyle='--', linewidth=1.0, alpha=0.7)
-            axs[1, 0].axvline(x=retention_time_without - w1_10_without/2, color='blue', linestyle=':', linewidth=1.0, alpha=0.7, label="w₁/10-Grenzen")
+            axs[1, 0].axvline(x=retention_time_without - w1_10_without/2, color='blue', linestyle=':', linewidth=1.0, alpha=0.7, label="w$_{1}$/10-Grenzen")
             axs[1, 0].axvline(x=retention_time_without + w1_10_without/2, color='blue', linestyle=':', linewidth=1.0, alpha=0.7)
             axs[1, 0].set_xlabel("Zeit [min]")
             axs[1, 0].set_ylabel("Signal")
@@ -215,20 +215,20 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
             axs[1, 1].plot(t_without[mask_zoom_without], gauss_fit_without[mask_zoom_without], 'r-', linewidth=1, label="Gaussian Fit")
             axs[1, 1].axvline(x=retention_time_without - fwhm_without/2, color='gray', linestyle='--', linewidth=1.0, alpha=0.7, label="FWHM-Grenzen")
             axs[1, 1].axvline(x=retention_time_without + fwhm_without/2, color='gray', linestyle='--', linewidth=1.0, alpha=0.7)
-            axs[1, 1].axvline(x=retention_time_without - w1_10_without/2, color='blue', linestyle=':', linewidth=1.0, alpha=0.7, label="w₁/10-Grenzen")
+            axs[1, 1].axvline(x=retention_time_without - w1_10_without/2, color='blue', linestyle=':', linewidth=1.0, alpha=0.7, label="w$_{1}$/10-Grenzen")
             axs[1, 1].axvline(x=retention_time_without + w1_10_without/2, color='blue', linestyle=':', linewidth=1.0, alpha=0.7)
             axs[1, 1].set_xlabel("Zeit [min]")
             axs[1, 1].set_ylabel("Signal")
             axs[1, 1].legend(fontsize=8)
             axs[1, 1].set_title("Ohne Säule - Zoom")
             
-            # Ergebnisbox in der 3. Zeile – ein einziger Textblock mit nur PGF-Ergebnissen
+            # Ergebnisbox in der 3. Zeile – ein einziger Textblock (nur PGF-Resultat)
             axs[2, 0].axis('off')
             axs[2, 1].axis('off')
             result_text = (
                 "Ergebnisse:\n"
-                "Mit Säule: PGF = " + r"\textcolor{" + pgf_with_color + "}{" + f"{pgf_with:.2f}" + "}\n"
-                "Ohne Säule: PGF = " + r"\textcolor{" + pgf_without_color + "}{" + f"{pgf_without:.2f}" + "}\n\n"
+                "Mit Säule: PGF = \\textcolor{" + pgf_with_color + "}{" + f"{pgf_with:.2f}" + "}\n"
+                "Ohne Säule: PGF = \\textcolor{" + pgf_without_color + "}{" + f"{pgf_without:.2f}" + "}\n\n"
                 "FWHM (Säule): " + f"{fwhm_col:.4f} min\n"
                 "Akzeptanzkriterium: 0.8 $<$ PGF $<$ 1.15"
             )
