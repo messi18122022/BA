@@ -38,6 +38,9 @@ from tkinter import filedialog
 import os
 import sys
 
+# LaTeX aktivieren, damit wir \textcolor verwenden können
+plt.rc('text', usetex=True)
+
 def shorten_filename(filename):
     base = os.path.basename(filename)
     index = base.find("_clt")
@@ -163,7 +166,7 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
             zoom_right_without = min(retention_time_without + zoom_margin_without, t_without[-1])
             mask_zoom_without = (t_without >= zoom_left_without) & (t_without <= zoom_right_without)
 
-            # Erzeuge 3×2-Raster: erste zwei Zeilen für Plots, dritte Zeile für Text
+            # Erzeuge 3×2-Raster: erste zwei Zeilen für Plots, dritte Zeile für einen einzigen Textblock
             fig, axs = plt.subplots(3, 2, figsize=(10, 12))
             fig.suptitle(f"Messung {i}: {shorten_filename(file_with)} vs. {shorten_filename(file_without)}", fontsize=14)
             
@@ -219,17 +222,16 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
             axs[1, 1].legend(fontsize=8)
             axs[1, 1].set_title("Ohne Säule - Zoom")
             
-            # Ergebnisbox in der 3. Zeile – ein einziger Textblock
+            # Ergebnisbox in der 3. Zeile – ein einziger Textblock mit nur PGF-Ergebnissen
             axs[2, 0].axis('off')
             axs[2, 1].axis('off')
             result_text = (
                 "Ergebnisse:\n"
-                "Mit Säule: PGF = " + f"{pgf_with:.2f}" + "\n"
-                "Ohne Säule: PGF = " + f"{pgf_without:.2f}" + "\n\n"
+                "Mit Säule: PGF = " + r"\textcolor{" + pgf_with_color + "}{" + f"{pgf_with:.2f}" + "}\n"
+                "Ohne Säule: PGF = " + r"\textcolor{" + pgf_without_color + "}{" + f"{pgf_without:.2f}" + "}\n\n"
                 "FWHM (Säule): " + f"{fwhm_col:.4f} min\n"
-                "Akzeptanzkriterium: 0.8 < PGF < 1.15"
+                "Akzeptanzkriterium: 0.8 $<$ PGF $<$ 1.15"
             )
-            # Den Text in einem einzigen Textfeld, wobei die Farbe der PGF-Werte entsprechend gesetzt wird
             axs[2, 0].text(0.05, 0.5, result_text, transform=axs[2, 0].transAxes,
                            fontsize=10, va="center", bbox=dict(facecolor='white', alpha=0.5))
             
