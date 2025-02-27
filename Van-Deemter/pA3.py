@@ -23,7 +23,7 @@ Berechnungsgrundlagen:
 Pro Dateipaar wird eine Seite im PDF-Report erstellt, die ein 3×2-Raster enthält:
   - 1. Zeile:   Mit Säule (links: Komplett, rechts: Zoom)
   - 2. Zeile:   Ohne Säule (links: Komplett, rechts: Zoom)
-  - 3. Zeile:   Enthält eine Textbox mit den Ergebnissen (nur Resultate, ohne die ganze Rechnung)
+  - 3. Zeile:   Enthält eine Textbox mit den Ergebnissen (als ein Block)
 Auf der letzten Seite wird eine Tabelle dargestellt, in der nur noch die Dateinamen und die
 FWHM (Säule) ausgegeben werden.
 """
@@ -219,17 +219,19 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
             axs[1, 1].legend(fontsize=8)
             axs[1, 1].set_title("Ohne Säule - Zoom")
             
-            # Ergebnisbox in der 3. Zeile – nur PGF-Ergebnis anzeigen
+            # Ergebnisbox in der 3. Zeile – ein einziger Textblock
             axs[2, 0].axis('off')
             axs[2, 1].axis('off')
-            # Mehrere Textaufrufe, um unterschiedliche Farben zu setzen
-            axs[2, 0].text(0.05, 0.85, "Ergebnisse:", transform=axs[2, 0].transAxes, fontsize=10, va="center", bbox=dict(facecolor='white', alpha=0.5))
-            axs[2, 0].text(0.05, 0.70, f"Mit Säule: FWHM = {fwhm_with:.4f} min", transform=axs[2, 0].transAxes, fontsize=10, va="center", bbox=dict(facecolor='white', alpha=0.5))
-            axs[2, 0].text(0.05, 0.60, f"PGF = {pgf_with:.2f}", transform=axs[2, 0].transAxes, fontsize=10, va="center", color=pgf_with_color, bbox=dict(facecolor='white', alpha=0.5))
-            axs[2, 0].text(0.55, 0.70, f"Ohne Säule: FWHM = {fwhm_without:.4f} min", transform=axs[2, 0].transAxes, fontsize=10, va="center", bbox=dict(facecolor='white', alpha=0.5))
-            axs[2, 0].text(0.55, 0.60, f"PGF = {pgf_without:.2f}", transform=axs[2, 0].transAxes, fontsize=10, va="center", color=pgf_without_color, bbox=dict(facecolor='white', alpha=0.5))
-            axs[2, 0].text(0.05, 0.45, f"FWHM (Säule): {fwhm_col:.4f} min", transform=axs[2, 0].transAxes, fontsize=10, va="center", bbox=dict(facecolor='white', alpha=0.5))
-            axs[2, 0].text(0.05, 0.30, "Akzeptanzkriterium: 0.8 < PGF < 1.15", transform=axs[2, 0].transAxes, fontsize=10, va="center", bbox=dict(facecolor='white', alpha=0.5))
+            result_text = (
+                "Ergebnisse:\n"
+                "Mit Säule: PGF = " + f"{pgf_with:.2f}" + "\n"
+                "Ohne Säule: PGF = " + f"{pgf_without:.2f}" + "\n\n"
+                "FWHM (Säule): " + f"{fwhm_col:.4f} min\n"
+                "Akzeptanzkriterium: 0.8 < PGF < 1.15"
+            )
+            # Den Text in einem einzigen Textfeld, wobei die Farbe der PGF-Werte entsprechend gesetzt wird
+            axs[2, 0].text(0.05, 0.5, result_text, transform=axs[2, 0].transAxes,
+                           fontsize=10, va="center", bbox=dict(facecolor='white', alpha=0.5))
             
             fig.tight_layout()
             pdf.savefig(fig)
