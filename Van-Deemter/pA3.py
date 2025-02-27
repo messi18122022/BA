@@ -14,17 +14,16 @@ Berechnungsgrundlagen:
   • Daraus folgt: σ_col = √(σ_obs² - σ_ext²) und w₁/₂ (Säule) = σ_col · √(8·ln2)
   
   Zusätzlich wird eine Gaussian-Kurve (rot) gefittet – mit Baselineabschätzung anhand der Messdaten.
-  Der Peak Gaussian Factor (PGF) wird definiert als:
+  Für die PGF-Berechnung werden die Breiten aus den baseline‑korrigierten Daten ermittelt:
   
       PGF = 1.83 · (w₁/₂ / w₁/10)
       
-  Dabei werden w₁/₂ und w₁/10 aus den baseline-korrigierten Daten ermittelt.
-  Für einen idealen Gauß-Peak sollte PGF ca. 1 betragen, d.h. im Bereich 0.8 bis 1.15 liegen.
+  Ein idealer Gauß-Peak sollte einen PGF im Bereich 0.8 bis 1.15 liefern.
   
 Pro Dateipaar wird eine Seite im PDF-Report erstellt, die ein 3×2-Raster enthält:
   - 1. Zeile:   Mit Säule (links: Komplett, rechts: Zoom)
   - 2. Zeile:   Ohne Säule (links: Komplett, rechts: Zoom)
-  - 3. Zeile:   Enthält eine Textbox mit den berechneten Ergebnissen (FWHM, PGF etc.)
+  - 3. Zeile:   Enthält eine Textbox mit den Ergebnissen inkl. der verwendeten Zahlen
 Auf der letzten Seite wird eine Tabelle dargestellt, in der nur noch die Dateinamen und die
 FWHM (Säule) ausgegeben werden.
 """
@@ -40,14 +39,6 @@ import os
 import sys
 
 def shorten_filename(filename):
-    """
-    Schneidet den Dateinamen ab: Sucht nach '_clt' und entfernt diesen Teil (inklusive des
-    vorangehenden Unterstrichs) aus dem Namen.
-    
-    Beispiel:
-      2025-02-26_S007_Cl_13_clt-dsk-n-1802_20250227-074721.txt 
-      -> 2025-02-26_S007_Cl_13
-    """
     base = os.path.basename(filename)
     index = base.find("_clt")
     if index != -1:
@@ -55,10 +46,6 @@ def shorten_filename(filename):
     return base
 
 def read_data(filename):
-    """
-    Liest die Datei ein und extrahiert die Daten ab der Zeile,
-    die mit 'min' beginnt. Es werden zwei Spalten erwartet: Zeit und Signal.
-    """
     with open(filename, 'r', encoding='latin-1') as f:
         lines = f.readlines()
     data_start = None
@@ -71,27 +58,18 @@ def read_data(filename):
     data = np.genfromtxt(lines[data_start:], delimiter=",")
     if data.ndim == 1 or data.shape[1] < 2:
         raise ValueError(f"Die Datei {filename} enthält keine gültigen 2-spaltigen Daten.")
-    return data[:,0], data[:,1]  # t, y
+    return data[:,0], data[:,1]
 
 def gaussian_offset(x, A, mu, sigma, B):
-    """Gaussian-Funktion mit Offset (Baseline)."""
     return B + A * np.exp(-((x - mu)**2) / (2 * sigma**2))
 
 def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf"):
-    """
-    Verarbeitet die Dateipaare:
-      - Liest die Messungen mit und ohne Säule ein.
-      - Glättet die Signale mittels Savitzky-Golay-Filter.
-      - Bestimmt das Peakmaximum, die FWHM und w₁/10.
-      - Berechnet den PGF aus baseline-korrigierten Daten und passt eine Gaussian-Kurve (rot) an.
-      - Visualisiert die Ergebnisse in einem 3×2-Raster und speichert sie in einem PDF-Report.
-    """
     if len(files_with) != len(files_without):
         print("Die Anzahl der Dateien mit Säule und ohne Säule stimmt nicht überein.")
         sys.exit(1)
     
-    results = []  # Speicherung der Berechnungsergebnisse für die Tabelle
-    const = np.sqrt(8 * np.log(2))  # Umrechnungsfaktor: w₁/₂ = σ * const
+    results = []
+    const = np.sqrt(8 * np.log(2))  # w₁/₂ = σ * const
 
     with PdfPages(pdf_filename) as pdf:
         for i, (file_with, file_without) in enumerate(zip(files_with, files_without), start=1):
@@ -101,32 +79,32 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
             except Exception as e:
                 print(f"Fehler beim Lesen der Dateien {file_with} oder {file_without}: {e}")
                 continue
-            
-            # Glättung der Signale
+
+            # Glätten der Signale
             window_length_with = 11 if len(y_with) >= 11 else (len(y_with) // 2) * 2 + 1
             window_length_without = 11 if len(y_without) >= 11 else (len(y_without) // 2) * 2 + 1
             y_with_smooth = savgol_filter(y_with, window_length=window_length_with, polyorder=3)
             y_without_smooth = savgol_filter(y_without, window_length=window_length_without, polyorder=3)
-            
-            # Bestimme Peak und Retentionszeit
+
+            # Peak und Retentionszeit
             peak_idx_with = np.argmax(y_with_smooth)
             peak_idx_without = np.argmax(y_without_smooth)
             retention_time_with = t_with[peak_idx_with]
             retention_time_without = t_without[peak_idx_without]
-            
-            # Berechne FWHM (rel_height=0.5)
+
+            # FWHM (rel_height=0.5)
             widths_with, _, _, _ = peak_widths(y_with_smooth, [peak_idx_with], rel_height=0.5)
             widths_without, _, _, _ = peak_widths(y_without_smooth, [peak_idx_without], rel_height=0.5)
             fwhm_with = widths_with[0] * (t_with[1]-t_with[0])
             fwhm_without = widths_without[0] * (t_without[1]-t_without[0])
-            
-            # Berechne w₁/10 (rel_height=0.1)
+
+            # w₁/10 (rel_height=0.1)
             widths_with_10, _, _, _ = peak_widths(y_with_smooth, [peak_idx_with], rel_height=0.1)
             widths_without_10, _, _, _ = peak_widths(y_without_smooth, [peak_idx_without], rel_height=0.1)
             w1_10_with = widths_with_10[0] * (t_with[1]-t_with[0])
             w1_10_without = widths_without_10[0] * (t_without[1]-t_without[0])
-            
-            # Schätze die Baseline innerhalb eines engen Fit-Fensters (retention_time ± 1·FWHM)
+
+            # Baseline-Schätzung innerhalb eines engen Fensters (retention_time ± 1·FWHM)
             fit_window_factor = 1.0
             mask_fit_with = (t_with >= retention_time_with - fit_window_factor * fwhm_with) & (t_with <= retention_time_with + fit_window_factor * fwhm_with)
             mask_fit_without = (t_without >= retention_time_without - fit_window_factor * fwhm_without) & (t_without <= retention_time_without + fit_window_factor * fwhm_without)
@@ -138,28 +116,28 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
                 return np.mean(np.concatenate((y[indices[:edge_count]], y[indices[-edge_count:]])))
             B0_with = estimate_baseline(t_with, y_with_smooth, mask_fit_with)
             B0_without = estimate_baseline(t_without, y_without_smooth, mask_fit_without)
-            
+
             # Baseline-korrigierte Signale
             y_with_corr = y_with_smooth - B0_with
             y_without_corr = y_without_smooth - B0_without
-            
-            # Berechne FWHM und w₁/10 aus den korrigierten Daten
+
+            # Berechne FWHM und w₁/10 aus den baseline-korrigierten Daten
             widths_with_corr, _, _, _ = peak_widths(y_with_corr, [peak_idx_with], rel_height=0.5)
-            widths_without_corr, _, _, _ = peak_widths(y_without_corr, [peak_idx_without], rel_height=0.5)
             fwhm_with_corr = widths_with_corr[0] * (t_with[1]-t_with[0])
+            widths_without_corr, _, _, _ = peak_widths(y_without_corr, [peak_idx_without], rel_height=0.5)
             fwhm_without_corr = widths_without_corr[0] * (t_without[1]-t_without[0])
             widths_with_10_corr, _, _, _ = peak_widths(y_with_corr, [peak_idx_with], rel_height=0.1)
-            widths_without_10_corr, _, _, _ = peak_widths(y_without_corr, [peak_idx_without], rel_height=0.1)
             w1_10_with_corr = widths_with_10_corr[0] * (t_with[1]-t_with[0])
+            widths_without_10_corr, _, _, _ = peak_widths(y_without_corr, [peak_idx_without], rel_height=0.1)
             w1_10_without_corr = widths_without_10_corr[0] * (t_without[1]-t_without[0])
-            
-            # Berechne den PGF anhand der korrigierten Werte
+
+            # Berechne PGF anhand der baseline-korrigierten Werte
             pgf_with = 1.83 * (fwhm_with_corr / w1_10_with_corr) if w1_10_with_corr != 0 else np.nan
             pgf_without = 1.83 * (fwhm_without_corr / w1_10_without_corr) if w1_10_without_corr != 0 else np.nan
             pgf_with_color = "green" if 0.8 <= pgf_with <= 1.15 else "red"
             pgf_without_color = "green" if 0.8 <= pgf_without <= 1.15 else "red"
-            
-            # Berechne σ-Werte und Säulen-FWHM (wie zuvor)
+
+            # σ-Werte und Säulen-FWHM
             sigma_obs = fwhm_with / const
             sigma_ext = fwhm_without / const
             if sigma_obs**2 >= sigma_ext**2:
@@ -168,16 +146,10 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
                 print(f"Warnung: Bei {shorten_filename(file_with)} ist σ_obs² kleiner als σ_ext². Setze σ_col auf 0.")
                 sigma_col = 0
             fwhm_col = sigma_col * const
-            
-            # Gaussian-Fit mit Offset (Basline) – verwende das enge Fit-Fenster
-            B0_fit_with = B0_with
-            B0_fit_without = B0_without
-            A0_with = y_with_smooth[peak_idx_with] - B0_fit_with
-            sigma0_with = fwhm_with / (2 * np.sqrt(2 * np.log(2)))
-            p0_with = [A0_with, retention_time_with, sigma0_with, B0_fit_with]
-            A0_without = y_without_smooth[peak_idx_without] - B0_fit_without
-            sigma0_without = fwhm_without / (2 * np.sqrt(2 * np.log(2)))
-            p0_without = [A0_without, retention_time_without, sigma0_without, B0_fit_without]
+
+            # Gaussian-Fit mit Offset – Fit-Fenster wie oben
+            p0_with = [y_with_smooth[peak_idx_with] - B0_with, retention_time_with, fwhm_with/(2*np.sqrt(2*np.log(2))), B0_with]
+            p0_without = [y_without_smooth[peak_idx_without] - B0_without, retention_time_without, fwhm_without/(2*np.sqrt(2*np.log(2))), B0_without]
             try:
                 popt_with, _ = curve_fit(gaussian_offset, t_with[mask_fit_with], y_with_smooth[mask_fit_with], p0=p0_with)
                 gauss_fit_with = gaussian_offset(t_with, *popt_with)
@@ -190,15 +162,14 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
             except Exception as e:
                 print("Gaussian fit failed for ohne Säule:", e)
                 gauss_fit_without = np.zeros_like(t_without)
-            
-            # Ergebnisse speichern (für die Abschlusstabelle)
+
             results.append({
                 "Datei mit Säule": shorten_filename(file_with),
                 "Datei ohne Säule": shorten_filename(file_without),
                 "FWHM (Säule) [min]": fwhm_col
             })
-            
-            # Bestimme Zoom-Bereiche (wie bisher)
+
+            # Zoom-Bereiche
             zoom_margin_with = fwhm_with
             zoom_left_with = max(retention_time_with - zoom_margin_with, t_with[0])
             zoom_right_with = min(retention_time_with + zoom_margin_with, t_with[-1])
@@ -207,8 +178,8 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
             zoom_left_without = max(retention_time_without - zoom_margin_without, t_without[0])
             zoom_right_without = min(retention_time_without + zoom_margin_without, t_without[-1])
             mask_zoom_without = (t_without >= zoom_left_without) & (t_without <= zoom_right_without)
-            
-            # Erzeuge 3×2-Raster (erste zwei Zeilen für Plots, dritte Zeile für Text)
+
+            # Erzeuge 3×2-Raster: erste zwei Zeilen für Plots, dritte für Text
             fig, axs = plt.subplots(3, 2, figsize=(10, 12))
             fig.suptitle(f"Messung {i}: {shorten_filename(file_with)} vs. {shorten_filename(file_without)}", fontsize=14)
             
@@ -256,27 +227,26 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
             axs[1, 1].legend(fontsize=8)
             axs[1, 1].set_title("Ohne Säule - Zoom")
             
-            # Ergebnisbox in der 3. Zeile
+            # Ergebnisbox in Zeile 3 – zeige die verwendeten Zahlen zur PGF-Berechnung
             axs[2, 0].axis('off')
             axs[2, 1].axis('off')
-            base_text = (
-                f"FWHM (mit Säule): {fwhm_with:.4f} min\n"
-                f"FWHM (ohne Säule): {fwhm_without:.4f} min\n"
-                f"FWHM (Säule): {fwhm_col:.4f} min"
+            result_text = (
+                "Ergebnisse:\n"
+                "Mit Säule:\n"
+                f"  FWHM (original): {fwhm_with:.4f} min\n"
+                f"  FWHM (baseline-korr.): {fwhm_with_corr:.4f} min\n"
+                f"  w₁/10 (baseline-korr.): {w1_10_with_corr:.4f} min\n"
+                f"  PGF = 1.83 * ({fwhm_with_corr:.4f} / {w1_10_with_corr:.4f}) = {pgf_with:.2f}\n\n"
+                "Ohne Säule:\n"
+                f"  FWHM (original): {fwhm_without:.4f} min\n"
+                f"  FWHM (baseline-korr.): {fwhm_without_corr:.4f} min\n"
+                f"  w₁/10 (baseline-korr.): {w1_10_without_corr:.4f} min\n"
+                f"  PGF = 1.83 * ({fwhm_without_corr:.4f} / {w1_10_without_corr:.4f}) = {pgf_without:.2f}\n\n"
+                f"FWHM (Säule): {fwhm_col:.4f} min\n"
+                "Sollte zwischen 0.8 und 1.15 liegen!"
             )
-            axs[2, 0].text(0.05, 0.6, base_text,
-                           transform=axs[2, 0].transAxes,
-                           fontsize=10, va="center",
-                           bbox=dict(facecolor='white', alpha=0.5))
-            axs[2, 0].text(0.6, 0.6, f"PGF (mit Säule): {pgf_with:.2f}", 
-                           transform=axs[2, 0].transAxes,
-                           fontsize=10, va="center", color=pgf_with_color)
-            axs[2, 0].text(0.6, 0.4, f"PGF (ohne Säule): {pgf_without:.2f}", 
-                           transform=axs[2, 0].transAxes,
-                           fontsize=10, va="center", color=pgf_without_color)
-            axs[2, 0].text(0.6, 0.2, "Sollte zwischen 0.8 und 1.15 liegen", 
-                           transform=axs[2, 0].transAxes,
-                           fontsize=10, va="center", color='black')
+            axs[2, 0].text(0.05, 0.5, result_text, transform=axs[2, 0].transAxes,
+                           fontsize=10, va="center", bbox=dict(facecolor='white', alpha=0.5))
             
             fig.tight_layout()
             pdf.savefig(fig)
@@ -307,7 +277,6 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
 if __name__ == "__main__":
     root = tk.Tk()
     root.withdraw()
-    
     files_with = filedialog.askopenfilenames(
         title="Wähle die Dateien aus (Messungen mit Säule)",
         filetypes=[("Textdateien", "*.txt"), ("Alle Dateien", "*.*")]
@@ -316,7 +285,6 @@ if __name__ == "__main__":
     if not files_with:
         print("Keine Dateien für Messungen mit Säule ausgewählt.")
         sys.exit(1)
-    
     files_without = filedialog.askopenfilenames(
         title="Wähle die Dateien aus (Messungen ohne Säule) in derselben Reihenfolge",
         filetypes=[("Textdateien", "*.txt"), ("Alle Dateien", "*.*")]
@@ -325,5 +293,4 @@ if __name__ == "__main__":
     if not files_without:
         print("Keine Dateien für Messungen ohne Säule ausgewählt.")
         sys.exit(1)
-    
     process_pairs(files_with, files_without)
