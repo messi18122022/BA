@@ -14,11 +14,11 @@ Berechnungsgrundlagen:
   • Daraus folgt: σ_col = √(σ_obs² - σ_ext²) und w₁/₂ (Säule) = σ_col · √(8·ln2)
   
   Zusätzlich wird eine Gaussian-Kurve (rot) gefittet – mit Baselineabschätzung anhand der Messdaten.
-  Für die PGF-Berechnung werden die Breiten aus den baseline‑korrigierten Daten ermittelt:
+  Für die PGF-Berechnung werden nun FWHM und w₁/10 direkt analog berechnet:
   
-      PGF = 1.83 · (w₁/₂ / w₁/10)
+      PGF = 1.83 · (FWHM / w₁/10)
       
-  Ein idealer Gauß-Peak sollte einen PGF im Bereich 0.8 bis 1.15 liefern.
+  Ein idealer Gauß-Peak sollte einen PGF im Bereich von ca. 0.8 bis 1.15 ergeben.
   
 Pro Dateipaar wird eine Seite im PDF-Report erstellt, die ein 3×2-Raster enthält:
   - 1. Zeile:   Mit Säule (links: Komplett, rechts: Zoom)
@@ -86,7 +86,7 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
             y_with_smooth = savgol_filter(y_with, window_length=window_length_with, polyorder=3)
             y_without_smooth = savgol_filter(y_without, window_length=window_length_without, polyorder=3)
 
-            # Peak und Retentionszeit
+            # Bestimme Peak und Retentionszeit
             peak_idx_with = np.argmax(y_with_smooth)
             peak_idx_without = np.argmax(y_without_smooth)
             retention_time_with = t_with[peak_idx_with]
@@ -98,42 +98,15 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
             fwhm_with = widths_with[0] * (t_with[1]-t_with[0])
             fwhm_without = widths_without[0] * (t_without[1]-t_without[0])
 
-            # w₁/10 (rel_height=0.1)
-            widths_with_10, _, _, _ = peak_widths(y_with_smooth, [peak_idx_with], rel_height=0.1)
-            widths_without_10, _, _, _ = peak_widths(y_without_smooth, [peak_idx_without], rel_height=0.1)
+            # w₁/10 analog zu FWHM, aber mit rel_height=0.1
+            widths_with_10, _, _, _ = peak_widths(y_with_smooth, [peak_idx_with], rel_height=0.9)
+            widths_without_10, _, _, _ = peak_widths(y_without_smooth, [peak_idx_without], rel_height=0.9)
             w1_10_with = widths_with_10[0] * (t_with[1]-t_with[0])
             w1_10_without = widths_without_10[0] * (t_without[1]-t_without[0])
 
-            # Baseline-Schätzung innerhalb eines engen Fensters (retention_time ± 1·FWHM)
-            fit_window_factor = 1.0
-            mask_fit_with = (t_with >= retention_time_with - fit_window_factor * fwhm_with) & (t_with <= retention_time_with + fit_window_factor * fwhm_with)
-            mask_fit_without = (t_without >= retention_time_without - fit_window_factor * fwhm_without) & (t_without <= retention_time_without + fit_window_factor * fwhm_without)
-            def estimate_baseline(x, y, mask):
-                indices = np.where(mask)[0]
-                if len(indices) < 2:
-                    return np.min(y)
-                edge_count = max(1, int(0.1 * len(indices)))
-                return np.mean(np.concatenate((y[indices[:edge_count]], y[indices[-edge_count:]])))
-            B0_with = estimate_baseline(t_with, y_with_smooth, mask_fit_with)
-            B0_without = estimate_baseline(t_without, y_without_smooth, mask_fit_without)
-
-            # Baseline-korrigierte Signale
-            y_with_corr = y_with_smooth - B0_with
-            y_without_corr = y_without_smooth - B0_without
-
-            # Berechne FWHM und w₁/10 aus den baseline-korrigierten Daten
-            widths_with_corr, _, _, _ = peak_widths(y_with_corr, [peak_idx_with], rel_height=0.5)
-            fwhm_with_corr = widths_with_corr[0] * (t_with[1]-t_with[0])
-            widths_without_corr, _, _, _ = peak_widths(y_without_corr, [peak_idx_without], rel_height=0.5)
-            fwhm_without_corr = widths_without_corr[0] * (t_without[1]-t_without[0])
-            widths_with_10_corr, _, _, _ = peak_widths(y_with_corr, [peak_idx_with], rel_height=0.1)
-            w1_10_with_corr = widths_with_10_corr[0] * (t_with[1]-t_with[0])
-            widths_without_10_corr, _, _, _ = peak_widths(y_without_corr, [peak_idx_without], rel_height=0.1)
-            w1_10_without_corr = widths_without_10_corr[0] * (t_without[1]-t_without[0])
-
-            # Berechne PGF anhand der baseline-korrigierten Werte
-            pgf_with = 1.83 * (fwhm_with_corr / w1_10_with_corr) if w1_10_with_corr != 0 else np.nan
-            pgf_without = 1.83 * (fwhm_without_corr / w1_10_without_corr) if w1_10_without_corr != 0 else np.nan
+            # PGF-Berechnung: direkt aus den oben ermittelten Werten
+            pgf_with = 1.83 * (fwhm_with / w1_10_with) if w1_10_with != 0 else np.nan
+            pgf_without = 1.83 * (fwhm_without / w1_10_without) if w1_10_without != 0 else np.nan
             pgf_with_color = "green" if 0.8 <= pgf_with <= 1.15 else "red"
             pgf_without_color = "green" if 0.8 <= pgf_without <= 1.15 else "red"
 
@@ -147,7 +120,19 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
                 sigma_col = 0
             fwhm_col = sigma_col * const
 
-            # Gaussian-Fit mit Offset – Fit-Fenster wie oben
+            # Gaussian-Fit mit Offset – verwende ein enges Fit-Fenster (retention_time ± 1·FWHM)
+            fit_window_factor = 1.0
+            mask_fit_with = (t_with >= retention_time_with - fit_window_factor * fwhm_with) & (t_with <= retention_time_with + fit_window_factor * fwhm_with)
+            mask_fit_without = (t_without >= retention_time_without - fit_window_factor * fwhm_without) & (t_without <= retention_time_without + fit_window_factor * fwhm_without)
+            # Baseline-Schätzung
+            def estimate_baseline(x, y, mask):
+                indices = np.where(mask)[0]
+                if len(indices) < 2:
+                    return np.min(y)
+                edge_count = max(1, int(0.1 * len(indices)))
+                return np.mean(np.concatenate((y[indices[:edge_count]], y[indices[-edge_count:]])))
+            B0_with = estimate_baseline(t_with, y_with_smooth, mask_fit_with)
+            B0_without = estimate_baseline(t_without, y_without_smooth, mask_fit_without)
             p0_with = [y_with_smooth[peak_idx_with] - B0_with, retention_time_with, fwhm_with/(2*np.sqrt(2*np.log(2))), B0_with]
             p0_without = [y_without_smooth[peak_idx_without] - B0_without, retention_time_without, fwhm_without/(2*np.sqrt(2*np.log(2))), B0_without]
             try:
@@ -169,7 +154,7 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
                 "FWHM (Säule) [min]": fwhm_col
             })
 
-            # Zoom-Bereiche
+            # Bestimme Zoom-Bereiche
             zoom_margin_with = fwhm_with
             zoom_left_with = max(retention_time_with - zoom_margin_with, t_with[0])
             zoom_right_with = min(retention_time_with + zoom_margin_with, t_with[-1])
@@ -179,7 +164,7 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
             zoom_right_without = min(retention_time_without + zoom_margin_without, t_without[-1])
             mask_zoom_without = (t_without >= zoom_left_without) & (t_without <= zoom_right_without)
 
-            # Erzeuge 3×2-Raster: erste zwei Zeilen für Plots, dritte für Text
+            # Erzeuge 3×2-Raster (erste zwei Zeilen für Plots, dritte Zeile für Text)
             fig, axs = plt.subplots(3, 2, figsize=(10, 12))
             fig.suptitle(f"Messung {i}: {shorten_filename(file_with)} vs. {shorten_filename(file_without)}", fontsize=14)
             
@@ -227,21 +212,19 @@ def process_pairs(files_with, files_without, pdf_filename="vanDeemter_Report.pdf
             axs[1, 1].legend(fontsize=8)
             axs[1, 1].set_title("Ohne Säule - Zoom")
             
-            # Ergebnisbox in Zeile 3 – zeige die verwendeten Zahlen zur PGF-Berechnung
+            # Ergebnisbox in der 3. Zeile – zeige verwendete Zahlen zur PGF-Berechnung
             axs[2, 0].axis('off')
             axs[2, 1].axis('off')
             result_text = (
                 "Ergebnisse:\n"
                 "Mit Säule:\n"
-                f"  FWHM (original): {fwhm_with:.4f} min\n"
-                f"  FWHM (baseline-korr.): {fwhm_with_corr:.4f} min\n"
-                f"  w₁/10 (baseline-korr.): {w1_10_with_corr:.4f} min\n"
-                f"  PGF = 1.83 * ({fwhm_with_corr:.4f} / {w1_10_with_corr:.4f}) = {pgf_with:.2f}\n\n"
+                f"  FWHM: {fwhm_with:.4f} min\n"
+                f"  w₁/10: {w1_10_with:.4f} min\n"
+                f"  PGF = 1.83 * ({fwhm_with:.4f} / {w1_10_with:.4f}) = {pgf_with:.2f}\n\n"
                 "Ohne Säule:\n"
-                f"  FWHM (original): {fwhm_without:.4f} min\n"
-                f"  FWHM (baseline-korr.): {fwhm_without_corr:.4f} min\n"
-                f"  w₁/10 (baseline-korr.): {w1_10_without_corr:.4f} min\n"
-                f"  PGF = 1.83 * ({fwhm_without_corr:.4f} / {w1_10_without_corr:.4f}) = {pgf_without:.2f}\n\n"
+                f"  FWHM: {fwhm_without:.4f} min\n"
+                f"  w₁/10: {w1_10_without:.4f} min\n"
+                f"  PGF = 1.83 * ({fwhm_without:.4f} / {w1_10_without:.4f}) = {pgf_without:.2f}\n\n"
                 f"FWHM (Säule): {fwhm_col:.4f} min\n"
                 "Sollte zwischen 0.8 und 1.15 liegen!"
             )
