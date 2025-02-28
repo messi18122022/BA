@@ -9,6 +9,8 @@ Van Deemter Analyse:
   • Fit H = A + B/flow + C*flow (van-Deemter-Gleichung),
   • Ausgabe der Fit-Parameter A, B, C (± Unsicherheit) und R² in wissenschaftlicher Schreibweise
     in einem separaten Subplot unterhalb des Plots.
+  
+Zusätzlich wird der van Deemter Plot erstellt und alle Seiten im PDF-Report haben A4-Größe.
 """
 
 import numpy as np
@@ -126,24 +128,29 @@ def process_pairs(files_with, files_without, flow_min, flow_max, delta, pdf_file
         pgf_with = 1.83*(fwhm_with/w1_10_with) if w1_10_with!=0 else np.nan
         pgf_without = 1.83*(fwhm_without/w1_10_without) if w1_10_without!=0 else np.nan
 
+        results.append({
+            "Datei mit Säule": shorten_filename(file_with),
+            "Datei ohne Säule": shorten_filename(file_without),
+            "FWHM (Säule) [min]": fwhm_col
+        })
+
         # Zoom-Bereiche
         def safe_zoom(t, tR, fwhm):
             z_margin = 1.5*fwhm
             left = max(tR - z_margin, t[0])
             right = min(tR + z_margin, t[-1])
             return (t>=left)&(t<=right)
-
         mask_zoom_with = safe_zoom(t_with, retention_time_with, fwhm_with)
         mask_zoom_without = safe_zoom(t_without, retention_time_without, fwhm_without)
 
-        # Gaussian-Fit (Baseline schätzen)
+        # Gaussian-Fit
         def estimate_baseline(x, y, mask):
             idx = np.where(mask)[0]
             if len(idx)<2:
                 return np.min(y)
             edge_count = max(1,int(0.1*len(idx)))
             return np.mean(np.concatenate((y[idx[:edge_count]], y[idx[-edge_count:]])))
-
+        
         try:
             fit_window_factor = 1.0
             mask_fit_with = (t_with>=retention_time_with - fit_window_factor*fwhm_with)&(t_with<=retention_time_with + fit_window_factor*fwhm_with)
@@ -163,18 +170,11 @@ def process_pairs(files_with, files_without, flow_min, flow_max, delta, pdf_file
         except:
             gauss_fit_without = np.zeros_like(t_without)
 
-        # Speichere Resultate
-        results.append({
-            "Datei mit Säule": shorten_filename(file_with),
-            "Datei ohne Säule": shorten_filename(file_without),
-            "FWHM (Säule) [min]": fwhm_col
-        })
-
-        # Einzelplots
-        fig, axs = plt.subplots(3,2, figsize=(10,12))
+        # Einzelplots (alle Seiten im A4-Format, also figsize=(8.27, 11.69))
+        fig, axs = plt.subplots(3,2, figsize=(8.27, 11.69))
         fig.suptitle(f"Messung {j+1}: {shorten_filename(file_with)} vs. {shorten_filename(file_without)}", fontsize=14)
 
-        # (0,0) Mit Säule - Komplett
+        # (0,0): Mit Säule – Komplett
         axs[0,0].plot(t_with, y_with, 'ko', markersize=3, label="Messdaten")
         axs[0,0].plot(t_with, y_with_smooth, 'b-', linewidth=1, label="Geglättet")
         axs[0,0].plot(t_with, gauss_fit_with, 'r-', linewidth=1, label="Gaussian Fit")
@@ -187,7 +187,7 @@ def process_pairs(files_with, files_without, flow_min, flow_max, delta, pdf_file
         axs[0,0].legend(fontsize=8)
         axs[0,0].set_title("Mit Säule - Komplett")
 
-        # (0,1) Mit Säule - Zoom
+        # (0,1): Mit Säule – Zoom
         axs[0,1].plot(t_with[mask_zoom_with], y_with[mask_zoom_with], 'ko', markersize=3, label="Messdaten (Zoom)")
         axs[0,1].plot(t_with[mask_zoom_with], y_with_smooth[mask_zoom_with], 'b-', linewidth=1, label="Geglättet (Zoom)")
         axs[0,1].plot(t_with[mask_zoom_with], gauss_fit_with[mask_zoom_with], 'r-', linewidth=1, label="Gaussian Fit")
@@ -200,7 +200,7 @@ def process_pairs(files_with, files_without, flow_min, flow_max, delta, pdf_file
         axs[0,1].legend(fontsize=8)
         axs[0,1].set_title("Mit Säule - Zoom")
 
-        # (1,0) Ohne Säule - Komplett
+        # (1,0): Ohne Säule – Komplett
         axs[1,0].plot(t_without, y_without, 'ko', markersize=3, label="Messdaten")
         axs[1,0].plot(t_without, y_without_smooth, 'b-', linewidth=1, label="Geglättet")
         axs[1,0].plot(t_without, gauss_fit_without, 'r-', linewidth=1, label="Gaussian Fit")
@@ -213,7 +213,7 @@ def process_pairs(files_with, files_without, flow_min, flow_max, delta, pdf_file
         axs[1,0].legend(fontsize=8)
         axs[1,0].set_title("Ohne Säule - Komplett")
 
-        # (1,1) Ohne Säule - Zoom
+        # (1,1): Ohne Säule – Zoom
         axs[1,1].plot(t_without[mask_zoom_without], y_without[mask_zoom_without], 'ko', markersize=3, label="Messdaten (Zoom)")
         axs[1,1].plot(t_without[mask_zoom_without], y_without_smooth[mask_zoom_without], 'b-', linewidth=1, label="Geglättet (Zoom)")
         axs[1,1].plot(t_without[mask_zoom_without], gauss_fit_without[mask_zoom_without], 'r-', linewidth=1, label="Gaussian Fit")
@@ -226,62 +226,49 @@ def process_pairs(files_with, files_without, flow_min, flow_max, delta, pdf_file
         axs[1,1].legend(fontsize=8)
         axs[1,1].set_title("Ohne Säule - Zoom")
 
-        # (2,0)-(2,1): Text
+        # (2,0)-(2,1): Ergebnistext (ein Block)
         axs[2,0].axis('off')
         axs[2,1].axis('off')
         result_text = (
             "Ergebnisse:\n"
-            "Mit Säule:\n"
-            f"  FWHM: {fwhm_with:.4f} min\n"
-            f"  w₁/10: {w1_10_with:.4f} min\n"
-            f"  PGF = 1.83 * ({fwhm_with:.4f} / {w1_10_with:.4f}) = {pgf_with:.2f}\n\n"
-            "Ohne Säule:\n"
-            f"  FWHM: {fwhm_without:.4f} min\n"
-            f"  w₁/10: {w1_10_without:.4f} min\n"
-            f"  PGF = 1.83 * ({fwhm_without:.4f} / {w1_10_without:.4f}) = {pgf_without:.2f}\n\n"
-            f"FWHM (Säule): {fwhm_col:.4f} min\n"
+            "Mit Säule: PGF = " + f"{pgf_with:.2f}" + "\n"
+            "Ohne Säule: PGF = " + f"{pgf_without:.2f}" + "\n\n"
+            "FWHM (Säule): " + f"{fwhm_col:.4f} min\n"
             "Akzeptanzkriterium: 0.8 < PGF < 1.15"
         )
         axs[2,0].text(0.05, 0.5, result_text, transform=axs[2,0].transAxes,
-                       fontsize=10, va="center", bbox=dict(facecolor='white', alpha=0.5))
-        
+                      fontsize=10, va="center", bbox=dict(facecolor='white', alpha=0.5))
+
         fig.tight_layout()
         measurement_figs.append(fig)
         plt.close(fig)
 
-    # Van-Deemter-Plot: H vs. Flussrate (nur Punkte)
-    # Erzeugen wir jetzt eine Figure mit 2 Subplots (oben: Plot, unten: Fit-Parameter).
-    fig_vd, (ax_plot, ax_text) = plt.subplots(2, 1, figsize=(8, 10))
+    # Van-Deemter-Plot: H vs. Flussrate (nur Punkte + Fit)
+    fig_vd, (ax_plot, ax_text) = plt.subplots(2, 1, figsize=(8.27, 11.69))
     fig_vd.suptitle("van Deemter Plot", fontsize=14)
-
-    # 1) Plot oben: H vs. Flussrate
-    ax_plot.plot(flow_rates, vanDeemter_H, 'bo', label="Messpunkte (H)")  # nur Punkte, keine Linie
+    ax_plot.plot(flow_rates, vanDeemter_H, 'bo', label="Messpunkte (H)")
     ax_plot.set_xlabel("Flussrate (mL/min)")
     ax_plot.set_ylabel("H (mm)")
 
-    # Fit
-    # Entferne NaN
-    flow_valid = flow_rates[~np.isnan(vanDeemter_H)]
-    H_valid = np.array(vanDeemter_H)[~np.isnan(vanDeemter_H)]
+    # Fit der van-Deemter-Gleichung: H = A + B/flow + C*flow
+    valid_mask = ~np.isnan(vanDeemter_H)
+    flow_valid = flow_rates[valid_mask]
+    H_valid = np.array(vanDeemter_H)[valid_mask]
     try:
         popt, pcov = curve_fit(van_deemter_eq, flow_valid, H_valid, p0=[1,1,1])
         A_fit, B_fit, C_fit = popt
-        perr = np.sqrt(np.diag(pcov))  # Unsicherheiten
+        perr = np.sqrt(np.diag(pcov))
         A_err, B_err, C_err = perr
-        # R²
         H_pred = van_deemter_eq(flow_valid, A_fit, B_fit, C_fit)
         ss_res = np.sum((H_valid - H_pred)**2)
         ss_tot = np.sum((H_valid - np.mean(H_valid))**2)
         r2 = 1 - ss_res/ss_tot
 
-        # Fitkurve
         flow_dense = np.linspace(flow_min, flow_max, 200)
         H_fit_dense = van_deemter_eq(flow_dense, A_fit, B_fit, C_fit)
         ax_plot.plot(flow_dense, H_fit_dense, 'r-', label="Fit: H = A + B/flow + C*flow")
         ax_plot.legend()
 
-        # 2) Parameter unten in wissenschaftlicher Schreibweise
-        # ax_text: reiner Text-Plot
         ax_text.axis('off')
         param_text = (
             "Van-Deemter-Fit:\n"
@@ -295,27 +282,18 @@ def process_pairs(files_with, files_without, flow_min, flow_max, delta, pdf_file
     except Exception as e:
         print("Fehler beim van-Deemter-Fit:", e)
 
-    # Speichern in PDF
+    # Speichern aller Seiten in PDF (alle Seiten im A4-Format)
     with PdfPages(pdf_filename) as pdf:
-        # Seite 1: van Deemter Plot + Parameter
         pdf.savefig(fig_vd)
         plt.close(fig_vd)
-
-        # Folgeseiten: Messungsseiten
         for fig in measurement_figs:
             pdf.savefig(fig)
-
-        # Letzte Seite: Tabelle
-        fig_table, ax_table = plt.subplots(figsize=(12, len(results)*0.5 + 2))
+        fig_table, ax_table = plt.subplots(figsize=(8.27, 11.69))
         ax_table.axis('tight')
         ax_table.axis('off')
         table_data = [["Datei mit Säule", "Datei ohne Säule", "FWHM (Säule) [min]"]]
         for res in results:
-            table_data.append([
-                res["Datei mit Säule"],
-                res["Datei ohne Säule"],
-                f"{res['FWHM (Säule) [min]']:.4f}"
-            ])
+            table_data.append([res["Datei mit Säule"], res["Datei ohne Säule"], f"{res['FWHM (Säule) [min]']:.4f}"])
         table = ax_table.table(cellText=table_data, loc="center", cellLoc='center')
         table.auto_set_font_size(False)
         table.set_fontsize(8)
@@ -329,27 +307,20 @@ def process_pairs(files_with, files_without, flow_min, flow_max, delta, pdf_file
 if __name__ == "__main__":
     root = tk.Tk()
     root.withdraw()
-
-    files_with = filedialog.askopenfilenames(
-        title="Wähle die Dateien aus (Messungen mit Säule)",
-        filetypes=[("Textdateien", "*.txt"), ("Alle Dateien", "*.*")]
-    )
+    files_with = filedialog.askopenfilenames(title="Wähle die Dateien aus (Messungen mit Säule)",
+                                              filetypes=[("Textdateien", "*.txt"), ("Alle Dateien", "*.*")])
     files_with = list(files_with)
     if not files_with:
         print("Keine Dateien für Messungen mit Säule ausgewählt.")
         sys.exit(1)
-
-    files_without = filedialog.askopenfilenames(
-        title="Wähle die Dateien aus (Messungen ohne Säule) in derselben Reihenfolge",
-        filetypes=[("Textdateien", "*.txt"), ("Alle Dateien", "*.*")]
-    )
+    files_without = filedialog.askopenfilenames(title="Wähle die Dateien aus (Messungen ohne Säule) in derselben Reihenfolge",
+                                                 filetypes=[("Textdateien", "*.txt"), ("Alle Dateien", "*.*")])
     files_without = list(files_without)
     if not files_without:
         print("Keine Dateien für Messungen ohne Säule ausgewählt.")
         sys.exit(1)
-
     flow_min = float(simpledialog.askstring("Flussrate", "Minimale Flussrate (mL/min):", initialvalue="0.1"))
     flow_max = float(simpledialog.askstring("Flussrate", "Maximale Flussrate (mL/min):", initialvalue="2.0"))
     delta = float(simpledialog.askstring("Flussrate", "Schrittweite (mL/min):", initialvalue="0.1"))
-
+    
     process_pairs(files_with, files_without, flow_min, flow_max, delta)
