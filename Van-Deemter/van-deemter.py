@@ -55,7 +55,7 @@ def van_deemter_eq(flow, A, B, C):
     """Van-Deemter-Gleichung: H = A + B/flow + C*flow"""
     return A + B/flow + C*flow
 
-def process_pairs(files_with, files_without, flow_min, flow_max, delta, pdf_filename="vanDeemter_Report.pdf"):
+def process_pairs(files_with, files_without, flow_min, flow_max, delta, pdf_filename="Van-Deemter/vanDeemter_Report.pdf"):
     if len(files_with) != len(files_without):
         print("Die Anzahl der Dateien mit Säule und ohne Säule stimmt nicht überein.")
         sys.exit(1)
