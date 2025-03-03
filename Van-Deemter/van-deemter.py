@@ -3,14 +3,15 @@
 """
 Van Deemter Analyse:
   • Einlesen von Messungen mit/ohne Säule,
-  • Korrigierte FWHM der Säule (fwhm_col),
-  • N = 5.55*(t_R)²/(fwhm_col)² und H = L/N,
-  • Plot H vs. Flussrate (nur Punkte),
-  • Fit H = A + B/flow + C*flow (van-Deemter-Gleichung),
-  • Ausgabe der Fit-Parameter A, B, C (± Unsicherheit) und R² in wissenschaftlicher Schreibweise
-    in einem separaten Subplot unterhalb des Plots.
-  
-Zusätzlich wird der van Deemter Plot erstellt und alle Seiten im PDF-Report haben A4-Größe.
+  • Korrigierte FWHM der Säule (fwhm_col) und roher FWHM (fwhm_with),
+  • Berechnung der Plattenzahl N = 5.55*(t_R)²/(fwhm_col)² bzw. N_raw = 5.55*(t_R)²/(fwhm_with)²,
+  • H = L/N bzw. H_raw = L/N_raw,
+  • Erstellen von Van-Deemter-Plots (H vs. Flussrate) inklusive Fit der van-Deemter-Gleichung,
+  • Ausgabe der Fit-Parameter A, B, C (± Unsicherheit) und R²,
+  • PDF-Report im A4-Format mit separaten Seiten:
+      - Seite 1: van Deemter Plot mit korrigierter Peakbreite (Extrakolumn-Korrektur)
+      - Seite 2: van Deemter Plot basierend auf den rohen Peakbreiten (ohne Extrakolumn-Korrektur)
+      - Weitere Seiten: Einzelplots der Messungen und eine Ergebnisstabelle.
 """
 
 import numpy as np
@@ -72,7 +73,8 @@ def process_pairs(files_with, files_without, flow_min, flow_max, delta, pdf_file
     flow_rates = np.linspace(flow_min, flow_max, n_points)
 
     # Listen für van Deemter
-    vanDeemter_H = []
+    vanDeemter_H = []       # korrigierte H-Werte (mit Extrakolumn-Korrektur)
+    vanDeemter_H_raw = []   # rohe H-Werte (ohne Korrektur, nur fwhm_with)
     measurement_figs = []
     results = []
     const = np.sqrt(8 * np.log(2))  # w₁/₂ = σ * const
@@ -87,8 +89,8 @@ def process_pairs(files_with, files_without, flow_min, flow_max, delta, pdf_file
             continue
         
         # Glätten
-        window_length_with = 11 if len(y_with)>=11 else (len(y_with)//2)*2+1
-        window_length_without = 11 if len(y_without)>=11 else (len(y_without)//2)*2+1
+        window_length_with = 11 if len(y_with) >= 11 else (len(y_with)//2)*2+1
+        window_length_without = 11 if len(y_without) >= 11 else (len(y_without)//2)*2+1
         y_with_smooth = savgol_filter(y_with, window_length_with, polyorder=3)
         y_without_smooth = savgol_filter(y_without, window_length_without, polyorder=3)
 
@@ -104,29 +106,37 @@ def process_pairs(files_with, files_without, flow_min, flow_max, delta, pdf_file
         widths_without, _, _, _ = peak_widths(y_without_smooth, [peak_idx_without], rel_height=0.5)
         fwhm_without = widths_without[0]*(t_without[1]-t_without[0])
 
-        # FWHM-Korrektur
+        # FWHM-Korrektur (nur für Messung mit Säule)
         sigma_obs = fwhm_with/const
         sigma_ext = fwhm_without/const
-        sigma_col = np.sqrt(sigma_obs**2 - sigma_ext**2) if sigma_obs**2>=sigma_ext**2 else 0
-        fwhm_col = sigma_col*const
+        sigma_col = np.sqrt(sigma_obs**2 - sigma_ext**2) if sigma_obs**2 >= sigma_ext**2 else 0
+        fwhm_col = sigma_col * const
 
-        # Bodenhöhe H
+        # Berechnung der Plattenzahl und H (korrigiert)
         if fwhm_col == 0:
             N = np.nan
         else:
-            N = 5.55*(retention_time_with**2)/(fwhm_col**2)
-        H = L/N if N!=0 and not np.isnan(N) else np.nan
+            N = 5.55 * (retention_time_with**2) / (fwhm_col**2)
+        H = L / N if N != 0 and not np.isnan(N) else np.nan
         vanDeemter_H.append(H)
 
-        # w₁/10
+        # NEU: Berechnung der Plattenzahl und H (raw, ohne Korrektur) mit fwhm_with
+        if fwhm_with == 0:
+            N_raw = np.nan
+        else:
+            N_raw = 5.55 * (retention_time_with**2) / (fwhm_with**2)
+        H_raw = L / N_raw if N_raw != 0 and not np.isnan(N_raw) else np.nan
+        vanDeemter_H_raw.append(H_raw)
+
+        # Berechnung der w₁/10-Werte
         widths_with_10, _, _, _ = peak_widths(y_with_smooth, [peak_idx_with], rel_height=0.9)
         w1_10_with = widths_with_10[0]*(t_with[1]-t_with[0])
         widths_without_10, _, _, _ = peak_widths(y_without_smooth, [peak_idx_without], rel_height=0.9)
         w1_10_without = widths_without_10[0]*(t_without[1]-t_without[0])
 
-        # PGF
-        pgf_with = 1.83*(fwhm_with/w1_10_with) if w1_10_with!=0 else np.nan
-        pgf_without = 1.83*(fwhm_without/w1_10_without) if w1_10_without!=0 else np.nan
+        # PGF Berechnung
+        pgf_with = 1.83*(fwhm_with/w1_10_with) if w1_10_with != 0 else np.nan
+        pgf_without = 1.83*(fwhm_without/w1_10_without) if w1_10_without != 0 else np.nan
 
         results.append({
             "Datei mit Säule": shorten_filename(file_with),
@@ -136,24 +146,24 @@ def process_pairs(files_with, files_without, flow_min, flow_max, delta, pdf_file
 
         # Zoom-Bereiche
         def safe_zoom(t, tR, fwhm):
-            z_margin = 1.5*fwhm
+            z_margin = 1.5 * fwhm
             left = max(tR - z_margin, t[0])
             right = min(tR + z_margin, t[-1])
-            return (t>=left)&(t<=right)
+            return (t >= left) & (t <= right)
         mask_zoom_with = safe_zoom(t_with, retention_time_with, fwhm_with)
         mask_zoom_without = safe_zoom(t_without, retention_time_without, fwhm_without)
 
         # Gaussian-Fit
         def estimate_baseline(x, y, mask):
             idx = np.where(mask)[0]
-            if len(idx)<2:
+            if len(idx) < 2:
                 return np.min(y)
-            edge_count = max(1,int(0.1*len(idx)))
+            edge_count = max(1, int(0.1 * len(idx)))
             return np.mean(np.concatenate((y[idx[:edge_count]], y[idx[-edge_count:]])))
         
         try:
             fit_window_factor = 1.0
-            mask_fit_with = (t_with>=retention_time_with - fit_window_factor*fwhm_with)&(t_with<=retention_time_with + fit_window_factor*fwhm_with)
+            mask_fit_with = (t_with >= retention_time_with - fit_window_factor*fwhm_with) & (t_with <= retention_time_with + fit_window_factor*fwhm_with)
             B0_with = estimate_baseline(t_with, y_with_smooth, mask_fit_with)
             p0_with = [y_with_smooth[peak_idx_with]-B0_with, retention_time_with, fwhm_with/(2*np.sqrt(2*np.log(2))), B0_with]
             popt_with, _ = curve_fit(gaussian_offset, t_with[mask_fit_with], y_with_smooth[mask_fit_with], p0=p0_with)
@@ -162,7 +172,7 @@ def process_pairs(files_with, files_without, flow_min, flow_max, delta, pdf_file
             gauss_fit_with = np.zeros_like(t_with)
         
         try:
-            mask_fit_without = (t_without>=retention_time_without - fit_window_factor*fwhm_without)&(t_without<=retention_time_without + fit_window_factor*fwhm_without)
+            mask_fit_without = (t_without >= retention_time_without - fit_window_factor*fwhm_without) & (t_without <= retention_time_without + fit_window_factor*fwhm_without)
             B0_without = estimate_baseline(t_without, y_without_smooth, mask_fit_without)
             p0_without = [y_without_smooth[peak_idx_without]-B0_without, retention_time_without, fwhm_without/(2*np.sqrt(2*np.log(2))), B0_without]
             popt_without, _ = curve_fit(gaussian_offset, t_without[mask_fit_without], y_without_smooth[mask_fit_without], p0=p0_without)
@@ -170,8 +180,8 @@ def process_pairs(files_with, files_without, flow_min, flow_max, delta, pdf_file
         except:
             gauss_fit_without = np.zeros_like(t_without)
 
-        # Einzelplots (alle Seiten im A4-Format, also figsize=(8.27, 11.69))
-        fig, axs = plt.subplots(3,2, figsize=(8.27, 11.69))
+        # Einzelplots (alle Seiten im A4-Format, figsize=(8.27, 11.69))
+        fig, axs = plt.subplots(3, 2, figsize=(8.27, 11.69))
         fig.suptitle(f"Messung {j+1}: {shorten_filename(file_with)} vs. {shorten_filename(file_without)}", fontsize=14)
 
         # (0,0): Mit Säule – Komplett
@@ -233,7 +243,7 @@ def process_pairs(files_with, files_without, flow_min, flow_max, delta, pdf_file
             "Ergebnisse:\n"
             "Mit Säule: PGF = " + f"{pgf_with:.2f}" + "\n"
             "Ohne Säule: PGF = " + f"{pgf_without:.2f}" + "\n\n"
-            "FWHM (Säule): " + f"{fwhm_col:.4f} min\n"
+            "FWHM (Säule) (korrigiert): " + f"{fwhm_col:.4f} min\n"
             "Akzeptanzkriterium: 0.8 < PGF < 1.15"
         )
         axs[2,0].text(0.05, 0.5, result_text, transform=axs[2,0].transAxes,
@@ -243,19 +253,18 @@ def process_pairs(files_with, files_without, flow_min, flow_max, delta, pdf_file
         measurement_figs.append(fig)
         plt.close(fig)
 
-    # Van-Deemter-Plot: H vs. Flussrate (nur Punkte + Fit)
+    # Van-Deemter-Plot (korrigiert, mit Extrakolumnarer Korrektur)
     fig_vd, (ax_plot, ax_text) = plt.subplots(2, 1, figsize=(8.27, 11.69))
-    fig_vd.suptitle("van Deemter Plot", fontsize=14)
-    ax_plot.plot(flow_rates, vanDeemter_H, 'bo', label="Messpunkte (H)")
+    fig_vd.suptitle("van Deemter Plot (mit Extrakolumnarer Korrektur)", fontsize=14)
+    ax_plot.plot(flow_rates, vanDeemter_H, 'bo', label="Messpunkte (H, korrigiert)")
     ax_plot.set_xlabel("Flussrate (mL/min)")
     ax_plot.set_ylabel("H (mm)")
 
-    # Fit der van-Deemter-Gleichung: H = A + B/flow + C*flow
-    valid_mask = ~np.isnan(vanDeemter_H)
-    flow_valid = flow_rates[valid_mask]
-    H_valid = np.array(vanDeemter_H)[valid_mask]
     try:
-        popt, pcov = curve_fit(van_deemter_eq, flow_valid, H_valid, p0=[1,1,1])
+        valid_mask = ~np.isnan(vanDeemter_H)
+        flow_valid = flow_rates[valid_mask]
+        H_valid = np.array(vanDeemter_H)[valid_mask]
+        popt, pcov = curve_fit(van_deemter_eq, flow_valid, H_valid, p0=[1, 1, 1])
         A_fit, B_fit, C_fit = popt
         perr = np.sqrt(np.diag(pcov))
         A_err, B_err, C_err = perr
@@ -271,7 +280,7 @@ def process_pairs(files_with, files_without, flow_min, flow_max, delta, pdf_file
 
         ax_text.axis('off')
         param_text = (
-            "Van-Deemter-Fit:\n"
+            "Van-Deemter-Fit (korrigiert):\n"
             f"A = {A_fit:.3e} ± {A_err:.3e}\n"
             f"B = {B_fit:.3e} ± {B_err:.3e}\n"
             f"C = {C_fit:.3e} ± {C_err:.3e}\n\n"
@@ -280,14 +289,53 @@ def process_pairs(files_with, files_without, flow_min, flow_max, delta, pdf_file
         ax_text.text(0.05, 0.9, param_text, transform=ax_text.transAxes, va='top',
                      fontsize=10, bbox=dict(facecolor='white', alpha=0.8))
     except Exception as e:
-        print("Fehler beim van-Deemter-Fit:", e)
+        print("Fehler beim van-Deemter-Fit (korrigiert):", e)
+
+    # Van-Deemter-Plot (RAW: ohne Extrakolumnare Korrektur)
+    fig_vd_raw, (ax_plot_raw, ax_text_raw) = plt.subplots(2, 1, figsize=(8.27, 11.69))
+    fig_vd_raw.suptitle("van Deemter Plot (ohne Extrakolumnare Korrektur)", fontsize=14)
+    ax_plot_raw.plot(flow_rates, vanDeemter_H_raw, 'bo', label="Messpunkte (H, raw)")
+    ax_plot_raw.set_xlabel("Flussrate (mL/min)")
+    ax_plot_raw.set_ylabel("H (mm)")
+
+    try:
+        valid_mask_raw = ~np.isnan(vanDeemter_H_raw)
+        flow_valid_raw = flow_rates[valid_mask_raw]
+        H_valid_raw = np.array(vanDeemter_H_raw)[valid_mask_raw]
+        popt_raw, pcov_raw = curve_fit(van_deemter_eq, flow_valid_raw, H_valid_raw, p0=[1, 1, 1])
+        A_fit_raw, B_fit_raw, C_fit_raw = popt_raw
+        perr_raw = np.sqrt(np.diag(pcov_raw))
+        A_err_raw, B_err_raw, C_err_raw = perr_raw
+        H_pred_raw = van_deemter_eq(flow_valid_raw, A_fit_raw, B_fit_raw, C_fit_raw)
+        ss_res_raw = np.sum((H_valid_raw - H_pred_raw)**2)
+        ss_tot_raw = np.sum((H_valid_raw - np.mean(H_valid_raw))**2)
+        r2_raw = 1 - ss_res_raw/ss_tot_raw
+
+        flow_dense_raw = np.linspace(flow_min, flow_max, 200)
+        H_fit_dense_raw = van_deemter_eq(flow_dense_raw, A_fit_raw, B_fit_raw, C_fit_raw)
+        ax_plot_raw.plot(flow_dense_raw, H_fit_dense_raw, 'r-', label="Fit: H = A + B/flow + C*flow")
+        ax_plot_raw.legend()
+
+        ax_text_raw.axis('off')
+        param_text_raw = (
+            "Van-Deemter-Fit (RAW):\n"
+            f"A = {A_fit_raw:.3e} ± {A_err_raw:.3e}\n"
+            f"B = {B_fit_raw:.3e} ± {B_err_raw:.3e}\n"
+            f"C = {C_fit_raw:.3e} ± {C_err_raw:.3e}\n\n"
+            f"R² = {r2_raw:.4f}"
+        )
+        ax_text_raw.text(0.05, 0.9, param_text_raw, transform=ax_text_raw.transAxes, va='top',
+                         fontsize=10, bbox=dict(facecolor='white', alpha=0.8))
+    except Exception as e:
+        print("Fehler beim van-Deemter-Fit (RAW):", e)
 
     # Speichern aller Seiten in PDF (alle Seiten im A4-Format)
     with PdfPages(pdf_filename) as pdf:
-        pdf.savefig(fig_vd)
-        plt.close(fig_vd)
+        pdf.savefig(fig_vd)       # Seite 1: van Deemter Plot (korrigiert)
+        pdf.savefig(fig_vd_raw)    # Seite 2: van Deemter Plot (raw)
         for fig in measurement_figs:
             pdf.savefig(fig)
+        # Tabelle mit den Ergebnissen
         fig_table, ax_table = plt.subplots(figsize=(8.27, 11.69))
         ax_table.axis('tight')
         ax_table.axis('off')
@@ -300,7 +348,7 @@ def process_pairs(files_with, files_without, flow_min, flow_max, delta, pdf_file
         table.scale(1, 1.5)
         ax_table.set_title("Übersicht der FWHM (Säule)", fontweight="bold")
         pdf.savefig(fig_table)
-        plt.close(fig_table)
+        plt.close('all')
     
     print(f"\nReport wurde erstellt: {pdf_filename}")
 
