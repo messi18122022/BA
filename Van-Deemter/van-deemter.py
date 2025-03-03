@@ -2,20 +2,21 @@
 # -*- coding: utf-8 -*-
 """
 Van Deemter Analyse:
-  • Einlesen von Messungen mit Säule und optional ohne Säule,
-  • Falls keine Datei ohne Säule hochgeladen wird, erfolgt die Analyse nur anhand der Messungen mit Säule (ohne extrakolumnare Korrektur).
+  • Einlesen von Messungen mit Säule und optional ohne Säule.
+  • Falls keine Datei ohne Säule hochgeladen wird, erfolgt die Analyse ausschließlich anhand der Messungen mit Säule
+    (d.h. es wird keine extrakolumnare Korrektur vorgenommen).
   • Berechnung der FWHM:
-      - Bei Vorliegen beider Messungen: Extrakolumn-Korrektur wird durchgeführt.
-      - Andernfalls: Es wird nur der raw Wert (fwhm_with) verwendet.
+      - Bei Vorliegen beider Messungen: wird die extrakolumnare Breite (fwhm_col) berechnet.
+      - Andernfalls: wird der raw-Wert (fwhm_with) verwendet.
   • Berechnung der theoretischen Plattenzahl N = 5.55*(t_R)²/(FWHM)² und der Plattenhöhe H = L/N.
-  • Erstellen des van Deemter Plots (H vs. Flussrate) inklusive Fit der van-Deemter-Gleichung.
-  • Der Report (PDF) enthält:
-      - Bei Vorliegen beider Messungen: 
+  • Erstellung des van Deemter Plots (H vs. Flussrate) inklusive Fit der van-Deemter-Gleichung.
+  • Der PDF-Report enthält:
+      - Falls beide Messungen vorliegen:
            Seite 1: van Deemter Plot mit extrakolumnarer Korrektur,
            Seite 2: van Deemter Plot ohne extrakolumnare Korrektur,
       - Falls nur Messungen mit Säule vorliegen:
-           Seite 1: van Deemter Plot (ohne extrakolumnare Korrektur),
-      - Weiterhin: Einzelplots der Messungen und eine Ergebnisstabelle.
+           Seite 1: van Deemter Plot (ohne extrakolumnare Korrektur).
+  • Zusätzlich werden Einzelplots der Messungen und eine Ergebnisstabelle erstellt.
 """
 
 import numpy as np
@@ -63,6 +64,14 @@ def van_deemter_eq(flow, A, B, C):
     """Van-Deemter-Gleichung: H = A + B/flow + C*flow"""
     return A + B/flow + C*flow
 
+def estimate_baseline(x, y, mask):
+    """Schätzt die Baseline als Mittelwert der Randwerte im Fit-Bereich."""
+    idx = np.where(mask)[0]
+    if len(idx) < 2:
+        return np.min(y)
+    edge_count = max(1, int(0.1 * len(idx)))
+    return np.mean(np.concatenate((y[idx[:edge_count]], y[idx[-edge_count:]])))
+
 def process_pairs(files_with, files_without, flow_min, flow_max, delta, pdf_filename="Van-Deemter/vanDeemter_Report.pdf"):
     # Prüfe, ob auch Dateien ohne Säule hochgeladen wurden
     both_available = True if files_without else False
@@ -72,7 +81,7 @@ def process_pairs(files_with, files_without, flow_min, flow_max, delta, pdf_file
             print("Die Anzahl der Dateien mit Säule und ohne Säule stimmt nicht überein.")
             sys.exit(1)
     # Anzahl der Flussratenpunkte muss der Anzahl der Messungen (mit Säule) entsprechen
-    n_points = int(round((flow_max - flow_min)/delta)) + 1
+    n_points = int(round((flow_max - flow_min) / delta)) + 1
     if n_points != len(files_with):
         print(f"Fehler: {n_points} berechnete Flussratenpunkte, aber {len(files_with)} Dateien (Messungen mit Säule).")
         sys.exit(1)
@@ -106,17 +115,17 @@ def process_pairs(files_with, files_without, flow_min, flow_max, delta, pdf_file
             peak_idx_with = np.argmax(y_with_smooth)
             retention_time_with = t_with[peak_idx_with]
             widths_with, _, _, _ = peak_widths(y_with_smooth, [peak_idx_with], rel_height=0.5)
-            fwhm_with = widths_with[0]*(t_with[1]-t_with[0])
+            fwhm_with = widths_with[0] * (t_with[1] - t_with[0])
 
             # Peak (ohne Säule)
             peak_idx_without = np.argmax(y_without_smooth)
             retention_time_without = t_without[peak_idx_without]
             widths_without, _, _, _ = peak_widths(y_without_smooth, [peak_idx_without], rel_height=0.5)
-            fwhm_without = widths_without[0]*(t_without[1]-t_without[0])
+            fwhm_without = widths_without[0] * (t_without[1] - t_without[0])
 
             # FWHM-Korrektur: Abzug des extrakolumnaren Beitrags
-            sigma_obs = fwhm_with/const
-            sigma_ext = fwhm_without/const
+            sigma_obs = fwhm_with / const
+            sigma_ext = fwhm_without / const
             sigma_col = np.sqrt(sigma_obs**2 - sigma_ext**2) if sigma_obs**2 >= sigma_ext**2 else 0
             fwhm_col = sigma_col * const
 
@@ -138,11 +147,11 @@ def process_pairs(files_with, files_without, flow_min, flow_max, delta, pdf_file
 
             # PGF Berechnung
             widths_with_10, _, _, _ = peak_widths(y_with_smooth, [peak_idx_with], rel_height=0.9)
-            w1_10_with = widths_with_10[0]*(t_with[1]-t_with[0])
+            w1_10_with = widths_with_10[0] * (t_with[1] - t_with[0])
             widths_without_10, _, _, _ = peak_widths(y_without_smooth, [peak_idx_without], rel_height=0.9)
-            w1_10_without = widths_without_10[0]*(t_without[1]-t_without[0])
-            pgf_with = 1.83*(fwhm_with/w1_10_with) if w1_10_with != 0 else np.nan
-            pgf_without = 1.83*(fwhm_without/w1_10_without) if w1_10_without != 0 else np.nan
+            w1_10_without = widths_without_10[0] * (t_without[1] - t_without[0])
+            pgf_with = 1.83 * (fwhm_with / w1_10_with) if w1_10_with != 0 else np.nan
+            pgf_without = 1.83 * (fwhm_without / w1_10_without) if w1_10_without != 0 else np.nan
 
             results.append({
                 "Datei mit Säule": shorten_filename(file_with),
@@ -159,31 +168,26 @@ def process_pairs(files_with, files_without, flow_min, flow_max, delta, pdf_file
             mask_zoom_with = safe_zoom(t_with, retention_time_with, fwhm_with)
             mask_zoom_without = safe_zoom(t_without, retention_time_without, fwhm_without)
 
-            # Gaussian-Fit
-            def estimate_baseline(x, y, mask):
-                idx = np.where(mask)[0]
-                if len(idx) < 2:
-                    return np.min(y)
-                edge_count = max(1, int(0.1 * len(idx)))
-                return np.mean(np.concatenate((y[idx[:edge_count]], y[idx[-edge_count:]])))
-            
+            # Gaussian-Fit für Messung mit Säule
             try:
                 fit_window_factor = 1.0
-                mask_fit_with = (t_with >= retention_time_with - fit_window_factor*fwhm_with) & (t_with <= retention_time_with + fit_window_factor*fwhm_with)
+                mask_fit_with = (t_with >= retention_time_with - fit_window_factor * fwhm_with) & (t_with <= retention_time_with + fit_window_factor * fwhm_with)
                 B0_with = estimate_baseline(t_with, y_with_smooth, mask_fit_with)
-                p0_with = [y_with_smooth[peak_idx_with]-B0_with, retention_time_with, fwhm_with/(2*np.sqrt(2*np.log(2))), B0_with]
+                p0_with = [y_with_smooth[peak_idx_with] - B0_with, retention_time_with, fwhm_with / (2 * np.sqrt(2 * np.log(2))), B0_with]
                 popt_with, _ = curve_fit(gaussian_offset, t_with[mask_fit_with], y_with_smooth[mask_fit_with], p0=p0_with)
                 gauss_fit_with = gaussian_offset(t_with, *popt_with)
-            except:
+            except Exception as e:
+                print("Fehler beim Gaussian-Fit (mit Säule):", e)
                 gauss_fit_with = np.zeros_like(t_with)
             
             try:
-                mask_fit_without = (t_without >= retention_time_without - fit_window_factor*fwhm_without) & (t_without <= retention_time_without + fit_window_factor*fwhm_without)
+                mask_fit_without = (t_without >= retention_time_without - fit_window_factor * fwhm_without) & (t_without <= retention_time_without + fit_window_factor * fwhm_without)
                 B0_without = estimate_baseline(t_without, y_without_smooth, mask_fit_without)
-                p0_without = [y_without_smooth[peak_idx_without]-B0_without, retention_time_without, fwhm_without/(2*np.sqrt(2*np.log(2))), B0_without]
+                p0_without = [y_without_smooth[peak_idx_without] - B0_without, retention_time_without, fwhm_without / (2 * np.sqrt(2 * np.log(2))), B0_without]
                 popt_without, _ = curve_fit(gaussian_offset, t_without[mask_fit_without], y_without_smooth[mask_fit_without], p0=p0_without)
                 gauss_fit_without = gaussian_offset(t_without, *popt_without)
-            except:
+            except Exception as e:
+                print("Fehler beim Gaussian-Fit (ohne Säule):", e)
                 gauss_fit_without = np.zeros_like(t_without)
 
             # Einzelplots (3x2 Layout für Messungen mit und ohne Säule)
@@ -276,7 +280,7 @@ def process_pairs(files_with, files_without, flow_min, flow_max, delta, pdf_file
             H_pred_corr = van_deemter_eq(flow_valid_corr, A_fit_corr, B_fit_corr, C_fit_corr)
             ss_res_corr = np.sum((H_valid_corr - H_pred_corr)**2)
             ss_tot_corr = np.sum((H_valid_corr - np.mean(H_valid_corr))**2)
-            r2_corr = 1 - ss_res_corr/ss_tot_corr
+            r2_corr = 1 - ss_res_corr / ss_tot_corr
 
             flow_dense_corr = np.linspace(flow_min, flow_max, 200)
             H_fit_dense_corr = van_deemter_eq(flow_dense_corr, A_fit_corr, B_fit_corr, C_fit_corr)
@@ -312,7 +316,7 @@ def process_pairs(files_with, files_without, flow_min, flow_max, delta, pdf_file
             H_pred_raw = van_deemter_eq(flow_valid_raw, A_fit_raw, B_fit_raw, C_fit_raw)
             ss_res_raw = np.sum((H_valid_raw - H_pred_raw)**2)
             ss_tot_raw = np.sum((H_valid_raw - np.mean(H_valid_raw))**2)
-            r2_raw = 1 - ss_res_raw/ss_tot_raw
+            r2_raw = 1 - ss_res_raw / ss_tot_raw
 
             flow_dense_raw = np.linspace(flow_min, flow_max, 200)
             H_fit_dense_raw = van_deemter_eq(flow_dense_raw, A_fit_raw, B_fit_raw, C_fit_raw)
@@ -371,7 +375,7 @@ def process_pairs(files_with, files_without, flow_min, flow_max, delta, pdf_file
             peak_idx_with = np.argmax(y_with_smooth)
             retention_time_with = t_with[peak_idx_with]
             widths_with, _, _, _ = peak_widths(y_with_smooth, [peak_idx_with], rel_height=0.5)
-            fwhm_with = widths_with[0]*(t_with[1]-t_with[0])
+            fwhm_with = widths_with[0] * (t_with[1] - t_with[0])
 
             # Da keine Datei ohne Säule vorliegt, wird keine extrakolumnare Korrektur durchgeführt.
             # fwhm_col entspricht also fwhm_with.
@@ -387,8 +391,8 @@ def process_pairs(files_with, files_without, flow_min, flow_max, delta, pdf_file
 
             # PGF Berechnung
             widths_with_10, _, _, _ = peak_widths(y_with_smooth, [peak_idx_with], rel_height=0.9)
-            w1_10_with = widths_with_10[0]*(t_with[1]-t_with[0])
-            pgf_with = 1.83*(fwhm_with/w1_10_with) if w1_10_with != 0 else np.nan
+            w1_10_with = widths_with_10[0] * (t_with[1] - t_with[0])
+            pgf_with = 1.83 * (fwhm_with / w1_10_with) if w1_10_with != 0 else np.nan
 
             results.append({
                 "Datei": shorten_filename(file_with),
@@ -408,14 +412,14 @@ def process_pairs(files_with, files_without, flow_min, flow_max, delta, pdf_file
             ax_complete.plot(t_with, y_with_smooth, 'b-', linewidth=1, label="Geglättet")
             try:
                 fit_window_factor = 1.0
-                mask_fit_with = (t_with >= retention_time_with - fit_window_factor*fwhm_with) & (t_with <= retention_time_with + fit_window_factor*fwhm_with)
-                B0_with = np.min(y_with_smooth[mask_fit_with])
-                p0_with = [y_with_smooth[peak_idx_with]-B0_with, retention_time_with, fwhm_with/(2*np.sqrt(2*np.log(2))), B0_with]
+                mask_fit_with = (t_with >= retention_time_with - fit_window_factor * fwhm_with) & (t_with <= retention_time_with + fit_window_factor * fwhm_with)
+                B0_with = estimate_baseline(t_with, y_with_smooth, mask_fit_with)
+                p0_with = [y_with_smooth[peak_idx_with] - B0_with, retention_time_with, fwhm_with / (2 * np.sqrt(2 * np.log(2))), B0_with]
                 popt_with, _ = curve_fit(gaussian_offset, t_with[mask_fit_with], y_with_smooth[mask_fit_with], p0=p0_with)
                 gauss_fit_with = gaussian_offset(t_with, *popt_with)
                 ax_complete.plot(t_with, gauss_fit_with, 'r-', linewidth=1, label="Gaussian Fit")
-            except:
-                pass
+            except Exception as e:
+                print("Fehler beim Gaussian-Fit (nur mit Säule):", e)
             ax_complete.axvline(retention_time_with - fwhm_with/2, color='gray', linestyle='--', linewidth=1, alpha=0.7)
             ax_complete.axvline(retention_time_with + fwhm_with/2, color='gray', linestyle='--', linewidth=1, alpha=0.7)
             ax_complete.set_xlabel("Zeit [min]")
@@ -469,7 +473,7 @@ def process_pairs(files_with, files_without, flow_min, flow_max, delta, pdf_file
             H_pred_raw = van_deemter_eq(flow_valid_raw, A_fit_raw, B_fit_raw, C_fit_raw)
             ss_res_raw = np.sum((H_valid_raw - H_pred_raw)**2)
             ss_tot_raw = np.sum((H_valid_raw - np.mean(H_valid_raw))**2)
-            r2_raw = 1 - ss_res_raw/ss_tot_raw
+            r2_raw = 1 - ss_res_raw / ss_tot_raw
 
             flow_dense_raw = np.linspace(flow_min, flow_max, 200)
             H_fit_dense_raw = van_deemter_eq(flow_dense_raw, A_fit_raw, B_fit_raw, C_fit_raw)
