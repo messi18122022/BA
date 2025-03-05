@@ -8,7 +8,7 @@ Van Deemter Analyse:
   • Berechnung der FWHM:
       - Bei Vorliegen beider Messungen: wird die extrakolumnare Breite (fwhm_col) berechnet.
       - Andernfalls: wird der raw-Wert (fwhm_with) verwendet.
-  • Berechnung der theoretischen Plattenzahl N = 5.55*(t_R)²/(FWHM)² und der Plattenhöhe H = L/N.
+  • Berechnung der theoretischen Plattenzahl N = 5.55*(t_R)^2/(FWHM)^2 und der Plattenhöhe H = L/N.
   • Erstellung des van Deemter Plots (H vs. Flussrate) inklusive Fit der van-Deemter-Gleichung.
   • Der PDF-Report enthält:
       - Falls beide Messungen vorliegen:
@@ -93,7 +93,7 @@ def process_pairs(files_with, files_without, flow_min, flow_max, delta, pdf_file
     vanDeemter_H_raw = []        # Raw-Werte (ohne extrakolumnare Korrektur)
     measurement_figs = []
     results = []
-    const = np.sqrt(8 * np.log(2))  # w₁/₂ = σ * const
+    const = np.sqrt(8 * np.log(2))  # FWHM = σ * const
 
     if both_available:
         # Verarbeitung, wenn beide Messungen vorliegen
@@ -123,21 +123,24 @@ def process_pairs(files_with, files_without, flow_min, flow_max, delta, pdf_file
             widths_without, _, _, _ = peak_widths(y_without_smooth, [peak_idx_without], rel_height=0.5)
             fwhm_without = widths_without[0] * (t_without[1] - t_without[0])
 
+            # Berechnung der korrigierten Retentionszeit (Säule)
+            t_R_corrected = retention_time_with - retention_time_without
+
             # FWHM-Korrektur: Abzug des extrakolumnaren Beitrags
             sigma_obs = fwhm_with / const
             sigma_ext = fwhm_without / const
             sigma_col = np.sqrt(sigma_obs**2 - sigma_ext**2) if sigma_obs**2 >= sigma_ext**2 else 0
             fwhm_col = sigma_col * const
 
-            # Berechnung der Plattenzahl und H (korrigiert)
+            # Berechnung der Plattenzahl und H (korrigiert) mit korrigiertem t_R
             if fwhm_col == 0:
                 N = np.nan
             else:
-                N = 5.55 * (retention_time_with**2) / (fwhm_col**2)
+                N = 5.55 * (t_R_corrected**2) / (fwhm_col**2)
             H_corrected = L / N if N != 0 and not np.isnan(N) else np.nan
             vanDeemter_H_corrected.append(H_corrected)
 
-            # Berechnung der Plattenzahl und H (raw, ohne Korrektur) mit fwhm_with
+            # Berechnung der Plattenzahl und H (raw, ohne Korrektur) mit fwhm_with und originaler t_R
             if fwhm_with == 0:
                 N_raw = np.nan
             else:
