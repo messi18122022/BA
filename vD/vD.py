@@ -12,11 +12,11 @@ def parse_pdf(file_path):
         for page in reader.pages:
             text += page.extract_text()
     
-    # Extrahiere Ident ohne den überflüssigen Zusatz " Ident"
+    # Extrahiere Ident ohne den Zusatz " Ident"
     match_ident = re.search(r'(\d{4}-\d{2}-\d{2}_[^\s]+)(?=\s*Ident)', text)
     data['Ident'] = match_ident.group(1) if match_ident else None
 
-    # Berücksichtige explizit die Zeilen:
+    # Erwartete Zeilen:
     # Zeile 1: "Retentionszeit Halbwertsbreite"
     # Zeile 2: "min min"
     # Zeile 3: Zahlen, z.B. "1,065 0,063"
@@ -26,7 +26,7 @@ def parse_pdf(file_path):
         retention_str = match_rhw.group(1).replace(',', '.')
         half_str = match_rhw.group(2).replace(',', '.')
         retention_value = float(retention_str)
-        # Subtrahiere 0.0002025 von der Halbwertsbreite (manuelle Korrektur)
+        # Subtrahiere 0.0002025 von der Halbwertsbreite
         half_value = float(half_str) - 0.0002025
         data['Retentionszeit'] = retention_value
         data['Halbwertsbreite'] = half_value
@@ -74,32 +74,46 @@ def read_data():
 
 def van_deemter_analysis(data_dict, L=150):
     """
-    Berechnet aus den gepaarten Messungen den HETP (Bodenhöhe H) gemäß:
+    Berechnet die Bodenhöhe H gemäß:
+    
     H = L * ((w_obs)^2 - (w_ext)^2) / (5.55*(t_obs - t_ext)^2)
     
-    L: Säulenlänge in mm
+    Falls keine Messungen OHNE Säule vorliegen, wird t_ext = 0 und w_ext = 0 gesetzt.
+    L: Säulenlänge in mm.
     """
     flow_rates = []
     H_values = []
     
-    # Wir nehmen an, dass beide Listen gleich lang sind oder wir nur die minimale Länge berücksichtigen
-    n = min(len(data_dict['mit_saeule']), len(data_dict['ohne_saeule']))
+    mit_list = data_dict['mit_saeule']
+    ohne_list = data_dict['ohne_saeule']
     
-    for i in range(n):
-        m = data_dict['mit_saeule'][i]
-        o = data_dict['ohne_saeule'][i]
-        
-        # Falls ein Wert fehlt, überspringen
-        if None in (m['Retentionszeit'], o['Retentionszeit'], m['Halbwertsbreite'], o['Halbwertsbreite']):
+    # Prüfe, ob Messungen ohne Säule vorliegen
+    use_external = len(ohne_list) > 0
+
+    for i, m in enumerate(mit_list):
+        # Für Messungen OHNE Säule entweder den entsprechenden Wert verwenden oder 0 einsetzen
+        if use_external:
+            # Falls auch eine entsprechende Messung ohne Säule existiert
+            if i < len(ohne_list):
+                o = ohne_list[i]
+                t_ext = o['Retentionszeit'] if o['Retentionszeit'] is not None else 0
+                w_ext = o['Halbwertsbreite'] if o['Halbwertsbreite'] is not None else 0
+            else:
+                t_ext = 0
+                w_ext = 0
+        else:
+            t_ext = 0
+            w_ext = 0
+
+        # Prüfe, ob die erforderlichen Werte vorliegen
+        if m['Retentionszeit'] is None or m['Halbwertsbreite'] is None or m['Flussrate'] is None:
             continue
         
         t_obs = m['Retentionszeit']
-        t_ext = o['Retentionszeit']
         w_obs = m['Halbwertsbreite']
-        w_ext = o['Halbwertsbreite']
-        u = m['Flussrate']  # Flussrate (mL/min)
+        u = m['Flussrate']
         
-        # Sicherstellen, dass die Differenz in der Retentionszeit nicht 0 ist
+        # Verhindere Division durch 0
         if (t_obs - t_ext) == 0:
             continue
         
@@ -110,7 +124,7 @@ def van_deemter_analysis(data_dict, L=150):
     print("Flussraten (u):", flow_rates)
     print("Bodenhöhen (H):", H_values)
     
-    # Erstelle den Van Deemter Plot:
+    # Erstelle den Van-Deemter-Plot
     plt.figure(figsize=(8,6))
     plt.plot(flow_rates, H_values, 'o-', label='Van Deemter Plot')
     plt.xlabel('Flussrate u (mL/min)')
@@ -122,7 +136,6 @@ def van_deemter_analysis(data_dict, L=150):
 
 def main():
     data_dict = read_data()
-    # Säulenlänge in mm (hier 150 mm, anpassen falls nötig)
     van_deemter_analysis(data_dict, L=150)
 
 if __name__ == "__main__":
