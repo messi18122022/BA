@@ -3,6 +3,8 @@ from tkinter import filedialog
 import re
 import PyPDF2
 import matplotlib.pyplot as plt
+import numpy as np
+from scipy.optimize import curve_fit
 
 def parse_pdf(file_path):
     data = {}
@@ -26,7 +28,7 @@ def parse_pdf(file_path):
         retention_str = match_rhw.group(1).replace(',', '.')
         half_str = match_rhw.group(2).replace(',', '.')
         retention_value = float(retention_str)
-        # Subtrahiere 0.0002025 von der Halbwertsbreite
+        # Subtrahiere 0.0002025 von der Halbwertsbreite (manuelle Korrektur)
         half_value = float(half_str) - 0.0002025
         data['Retentionszeit'] = retention_value
         data['Halbwertsbreite'] = half_value
@@ -72,13 +74,16 @@ def read_data():
     print(data_dict)
     return data_dict
 
+def van_deemter_model(u, A, B, C):
+    return A + B/u + C*u
+
 def van_deemter_analysis(data_dict, L=150):
     """
     Berechnet die Bodenhöhe H gemäß:
     
     H = L * ((w_obs)^2 - (w_ext)^2) / (5.55*(t_obs - t_ext)^2)
     
-    Falls keine Messungen OHNE Säule vorliegen, wird t_ext = 0 und w_ext = 0 gesetzt.
+    Falls keine Messungen OHNE Säule vorliegen, werden t_ext und w_ext auf 0 gesetzt.
     L: Säulenlänge in mm.
     """
     flow_rates = []
@@ -91,9 +96,8 @@ def van_deemter_analysis(data_dict, L=150):
     use_external = len(ohne_list) > 0
 
     for i, m in enumerate(mit_list):
-        # Für Messungen OHNE Säule entweder den entsprechenden Wert verwenden oder 0 einsetzen
+        # Für Messungen OHNE Säule: Entweder den entsprechenden Wert verwenden oder 0 einsetzen
         if use_external:
-            # Falls auch eine entsprechende Messung ohne Säule existiert
             if i < len(ohne_list):
                 o = ohne_list[i]
                 t_ext = o['Retentionszeit'] if o['Retentionszeit'] is not None else 0
@@ -105,7 +109,6 @@ def van_deemter_analysis(data_dict, L=150):
             t_ext = 0
             w_ext = 0
 
-        # Prüfe, ob die erforderlichen Werte vorliegen
         if m['Retentionszeit'] is None or m['Halbwertsbreite'] is None or m['Flussrate'] is None:
             continue
         
@@ -124,9 +127,35 @@ def van_deemter_analysis(data_dict, L=150):
     print("Flussraten (u):", flow_rates)
     print("Bodenhöhen (H):", H_values)
     
-    # Erstelle den Van-Deemter-Plot
+    # Führe den Fit mit der Van Deemter Gleichung durch: H = A + B/u + C*u
+    u_data = np.array(flow_rates)
+    H_data = np.array(H_values)
+    
+    popt, pcov = curve_fit(van_deemter_model, u_data, H_data)
+    perr = np.sqrt(np.diag(pcov))
+    
+    # Berechne R^2
+    H_fit = van_deemter_model(u_data, *popt)
+    residuals = H_data - H_fit
+    ss_res = np.sum(residuals**2)
+    ss_tot = np.sum((H_data - np.mean(H_data))**2)
+    r_squared = 1 - (ss_res / ss_tot)
+    
+    print("Fitted coefficients:")
+    print("A = {:.4f} ± {:.4f}".format(popt[0], perr[0]))
+    print("B = {:.4f} ± {:.4f}".format(popt[1], perr[1]))
+    print("C = {:.4f} ± {:.4f}".format(popt[2], perr[2]))
+    print("Bestimmtheitsmaß R^2 =", r_squared)
+    
+    # Plot: Datenpunkte (nur Punkte) und der Fit
     plt.figure(figsize=(8,6))
-    plt.plot(flow_rates, H_values, 'o-', label='Van Deemter Plot')
+    plt.scatter(u_data, H_data, label='Datenpunkte', color='blue')
+    
+    # Erstelle eine glatte Kurve für den Fit
+    u_fit = np.linspace(np.min(u_data), np.max(u_data), 100)
+    H_fit_line = van_deemter_model(u_fit, *popt)
+    plt.plot(u_fit, H_fit_line, 'r-', label='Fit: H = A + B/u + C*u')
+    
     plt.xlabel('Flussrate u (mL/min)')
     plt.ylabel('Bodenhöhe H (mm)')
     plt.title('Van Deemter Plot')
