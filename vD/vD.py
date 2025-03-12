@@ -2,9 +2,15 @@ import tkinter as tk
 from tkinter import filedialog
 import re
 import PyPDF2
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.optimize import curve_fit
+
+# Matplotlib so konfigurieren, dass LaTeX verwendet wird:
+mpl.rc('text', usetex=True)
+mpl.rc('font', family='serif')
+mpl.rcParams['text.latex.preamble'] = r'\usepackage{amsmath} \usepackage{siunitx}'
 
 def parse_pdf(file_path):
     data = {}
@@ -81,10 +87,13 @@ def van_deemter_analysis(data_dict, L=150):
     """
     Berechnet die Bodenhöhe H gemäß:
     
-    H = L * ((w_obs)^2 - (w_ext)^2) / (5.55*(t_obs - t_ext)^2)
+    \[
+    H = \frac{L\,\Big((w_{1/2,\text{obs}})^2 - (w_{1/2,\text{ext}})^2\Big)}{5.55\,(t_{R,\text{obs}}-t_{R,\text{ext}})^2}
+    \]
     
-    Falls keine Messungen OHNE Säule vorliegen, werden t_ext und w_ext auf 0 gesetzt.
-    L: Säulenlänge in mm.
+    Falls keine Messungen OHNE Säule vorliegen, werden \( t_{R,\text{ext}} \) und \( w_{1/2,\text{ext}} \) auf 0 gesetzt.
+    
+    L: Säulenlänge in \(\SI{}{\mm}\).
     """
     flow_rates = []
     H_values = []
@@ -127,7 +136,7 @@ def van_deemter_analysis(data_dict, L=150):
     print("Flussraten (u):", flow_rates)
     print("Bodenhöhen (H):", H_values)
     
-    # Führe den Fit mit der Van Deemter Gleichung durch: H = A + B/u + C*u
+    # Fit der Van-Deemter-Gleichung: H = A + B/u + C*u
     u_data = np.array(flow_rates)
     H_data = np.array(H_values)
     
@@ -145,22 +154,24 @@ def van_deemter_analysis(data_dict, L=150):
     print("A = {:.4f} ± {:.4f}".format(popt[0], perr[0]))
     print("B = {:.4f} ± {:.4f}".format(popt[1], perr[1]))
     print("C = {:.4f} ± {:.4f}".format(popt[2], perr[2]))
-    print("Bestimmtheitsmaß R^2 =", r_squared)
+    print("Bestimmtheitsmaß $R^2$ =", r_squared)
     
-    # Plot: Datenpunkte (nur Punkte) und der Fit
-    plt.figure(figsize=(8,6))
-    plt.scatter(u_data, H_data, label='Datenpunkte', color='blue')
+    # Plot: Datenpunkte als Scatterplot und Fit-Kurve (als glatte Linie)
+    plt.figure(figsize=(8,5))
+    plt.scatter(u_data, H_data, label=r'Datenpunkte', color='blue')
     
     # Erstelle eine glatte Kurve für den Fit
     u_fit = np.linspace(np.min(u_data), np.max(u_data), 100)
     H_fit_line = van_deemter_model(u_fit, *popt)
-    plt.plot(u_fit, H_fit_line, 'r-', label='Fit: H = A + B/u + C*u')
+    plt.plot(u_fit, H_fit_line, 'r-', label=r'Fit: $H = A + \frac{B}{u} + C\,u$')
     
-    plt.xlabel('Flussrate u (mL/min)')
-    plt.ylabel('Bodenhöhe H (mm)')
-    plt.title('Van Deemter Plot')
+    plt.xlabel(r'Flussrate $u$ / $\left( \SI{}{\milli \liter \per \minute} \right)$')
+    plt.ylabel(r'Bodenh\"ohe $H$ / $\left( \SI{}{\milli \meter} \right)$')
     plt.legend()
     plt.grid(True)
+    
+    # Speichere den Plot als PDF
+    plt.savefig("vD/van_deemter_plot.pdf", format="pdf")
     plt.show()
 
 def main():
