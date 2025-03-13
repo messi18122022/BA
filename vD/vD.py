@@ -83,7 +83,7 @@ def read_data():
 def van_deemter_model(u, A, B, C):
     return A + B/u + C*u
 
-def van_deemter_analysis(data_dict, L=150):
+def van_deemter_analysis(data_dict, L=100):
     """
     Berechnet die Bodenhöhe H gemäß:
     
@@ -176,7 +176,7 @@ def van_deemter_analysis(data_dict, L=150):
 
 def main():
     data_dict = read_data()
-    van_deemter_analysis(data_dict, L=150)
+    van_deemter_analysis(data_dict, L=100)
 
 if __name__ == "__main__":
     main()
