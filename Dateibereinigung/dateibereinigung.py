@@ -33,5 +33,5 @@ def clean_txt_files(folder_path):
                 print(f"Kein 'min,µS/cm' gefunden in: {filename}, Datei bleibt unverändert.")
 
 # Beispielaufruf
-ordner_pfad = "/Users/musamoin/Desktop/BA_Musa-Moin_FS25/Messungen/txt_files/"  # <--- Hier den tatsächlichen Pfad anpassen
+ordner_pfad = "/Users/musamoin/Desktop/BA_Musa-Moin_FS25/Messungen/Juan/txt_files/"  # <--- Hier den tatsächlichen Pfad anpassen
 clean_txt_files(ordner_pfad)
