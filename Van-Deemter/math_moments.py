@@ -7,49 +7,26 @@ import matplotlib.pyplot as plt
 
 def finde_peak_fenster(zeit, signal, schwellen_prozent=0.05):
     """
-    Findet den Bereich um den höchsten Peak (Maximum des Signals),
-    indem nach links und rechts bis unter einen definierten Schwellenwert
-    gegangen wird.
-    
-    Parameter:
-    -----------
-    zeit : array-like
-        Zeitwerte.
-    signal : array-like
-        Signalwerte.
-    schwellen_prozent : float
-        Prozentsatz (zwischen 0 und 1), der für den Abstand zwischen
-        Baseline und Peak verwendet wird, um die linke und rechte
-        Grenze des Peaks zu bestimmen.
-    
-    Rückgabe:
-    -----------
-    left_index, right_index : int
-        Index-Grenzen des Peak-Fensters.
+    Bestimmt den Bereich um das globale Maximum (Peak),
+    indem von dort nach links und rechts gesucht wird, bis das Signal
+    unter einen definierten Schwellenwert fällt.
     """
     if len(zeit) == 0 or len(signal) == 0:
         return None, None
     
-    # Index des globalen Maximums
     i_peak = np.argmax(signal)
-    
-    # Baseline hier sehr einfach als Minimum des Signals
     baseline = np.min(signal)
     peak_value = signal[i_peak]
     
-    # Falls peak_value == baseline, wäre kein echter Peak vorhanden
     if peak_value == baseline:
         return None, None
     
-    # Schwellenwert definieren (z.B. 5 % über der Baseline bis zum Peak)
     threshold = baseline + schwellen_prozent * (peak_value - baseline)
     
-    # Suche von i_peak nach links, bis das Signal unter threshold fällt
     left_index = i_peak
     while left_index > 0 and signal[left_index] > threshold:
         left_index -= 1
     
-    # Suche von i_peak nach rechts, bis das Signal unter threshold fällt
     right_index = i_peak
     while right_index < len(signal) - 1 and signal[right_index] > threshold:
         right_index += 1
@@ -58,9 +35,9 @@ def finde_peak_fenster(zeit, signal, schwellen_prozent=0.05):
 
 def momentanalyse(zeit, signal):
     """
-    Führt die Momentanalyse (erster und zweiter Moment) durch:
-      - Retentionszeit (gewichteter Mittelwert)
-      - Peakbreite (Standardabweichung)
+    Berechnet den ersten Moment (gewichteter Mittelwert, Retentionszeit)
+    und den zweiten Moment (Standardabweichung).
+    Diese Methode setzt jedoch symmetrische Peaks voraus.
     """
     m0 = np.sum(signal)
     if m0 == 0:
@@ -71,6 +48,50 @@ def momentanalyse(zeit, signal):
     stdev = np.sqrt(varianz)
     
     return t_mean, stdev
+
+def berechne_halbwertsbreite(zeit, signal):
+    """
+    Ermittelt die Halbwertsbreite (FWHM) des Peaks.
+    Dazu wird der Punkt gesucht, an dem das Signal 50% seines 
+    (peak-baseline)-Werts erreicht – links und rechts vom Peak.
+    Lineare Interpolation sorgt für genauere Zeitwerte.
+    """
+    i_peak = np.argmax(signal)
+    peak_value = signal[i_peak]
+    baseline = np.min(signal)
+    
+    # Halbwert des Peaks (50 % zwischen Baseline und Peak)
+    half_max = baseline + (peak_value - baseline) / 2.0
+
+    # Links vom Peak
+    left_index = i_peak
+    while left_index > 0 and signal[left_index] > half_max:
+        left_index -= 1
+    if left_index == 0:
+        t_left = zeit[0]
+    else:
+        t1, t2 = zeit[left_index], zeit[left_index + 1]
+        s1, s2 = signal[left_index], signal[left_index + 1]
+        if s2 != s1:
+            t_left = t1 + (half_max - s1) * (t2 - t1) / (s2 - s1)
+        else:
+            t_left = t1
+
+    # Rechts vom Peak
+    right_index = i_peak
+    while right_index < len(signal) - 1 and signal[right_index] > half_max:
+        right_index += 1
+    if right_index == len(signal) - 1:
+        t_right = zeit[-1]
+    else:
+        t1, t2 = zeit[right_index - 1], zeit[right_index]
+        s1, s2 = signal[right_index - 1], signal[right_index]
+        if s2 != s1:
+            t_right = t1 + (half_max - s1) * (t2 - t1) / (s2 - s1)
+        else:
+            t_right = t2
+
+    return t_left, t_right
 
 def main():
     # Tkinter-Hauptfenster ausblenden
@@ -94,7 +115,7 @@ def main():
     
     for datei in dateipfade:
         try:
-            # Daten einlesen (Trennzeichen: Komma)
+            # Daten einlesen
             df = pd.read_csv(datei, delimiter=',')
             if df.shape[1] < 2:
                 messagebox.showwarning("Fehler", f"Die Datei '{datei}' hat nicht genügend Spalten.")
@@ -110,41 +131,42 @@ def main():
                 messagebox.showwarning("Warnung", f"Kein Peak in '{datei}' gefunden.")
                 continue
             
-            # Teilbereiche für Momentanalyse ausschneiden
+            # Teilbereiche für Analyse ausschneiden
             t_slice = zeit[left_idx:right_idx+1]
             s_slice = signal[left_idx:right_idx+1]
             
-            # 4) Momentanalyse nur im Peak-Fenster
-            rt, pb = momentanalyse(t_slice, s_slice)
+            # 4) Berechne Retentionszeit mittels Momentanalyse (optional)
+            t_mean, _ = momentanalyse(t_slice, s_slice)
             
-            # 5) Subplots erstellen: links Gesamt, rechts Zoom
+            # 5) Berechne Halbwertsbreite (FWHM) für asymmetrische Peaks
+            t_left, t_right = berechne_halbwertsbreite(t_slice, s_slice)
+            fwhm = t_right - t_left
+            
+            # 6) Subplots erstellen: links Gesamt, rechts Zoom
             fig, axes = plt.subplots(1, 2, figsize=(12, 5))
             fig.suptitle(f"{os.path.basename(datei)}\n"
-                         f"Retentionszeit: {rt:.2f} min, Peakbreite: {pb:.2f} min")
+                         f"Retentionszeit: {t_mean:.2f} min, FWHM: {fwhm:.2f} min")
             
-            # -- Linker Plot: gesamtes Chromatogramm --
+            # Linker Plot: gesamtes Chromatogramm
             axes[0].plot(zeit, signal, label="Signal", color="blue")
             axes[0].axvspan(zeit[left_idx], zeit[right_idx], color="orange", alpha=0.2, label="Peak-Fenster")
-            axes[0].axvline(rt, color="red", linestyle="--", label="Retentionszeit")
-            axes[0].axvspan(rt - pb, rt + pb, color="red", alpha=0.1, label="Peakbreite")
-            
+            axes[0].axvline(t_mean, color="red", linestyle="--", label="Retentionszeit")
+            axes[0].axvspan(t_left, t_right, color="red", alpha=0.1, label="FWHM")
             axes[0].set_title("Gesamtes Chromatogramm")
             axes[0].set_xlabel("Zeit (min)")
             axes[0].set_ylabel("Signal (µS/cm)")
             axes[0].legend()
             
-            # -- Rechter Plot: Zoom auf den Peak --
+            # Rechter Plot: Zoom auf den Peak
             axes[1].plot(zeit, signal, label="Signal", color="blue")
             axes[1].axvspan(zeit[left_idx], zeit[right_idx], color="orange", alpha=0.2)
-            axes[1].axvline(rt, color="red", linestyle="--", label="Retentionszeit")
-            axes[1].axvspan(rt - pb, rt + pb, color="red", alpha=0.1)
-            
-            # X-Limits: etwas Puffer um den Peak herum
+            axes[1].axvline(t_mean, color="red", linestyle="--", label="Retentionszeit")
+            axes[1].axvspan(t_left, t_right, color="red", alpha=0.1, label="FWHM")
             x_left = zeit[left_idx] - 0.1 * (zeit[right_idx] - zeit[left_idx])
             x_right = zeit[right_idx] + 0.1 * (zeit[right_idx] - zeit[left_idx])
             axes[1].set_xlim(x_left, x_right)
             
-            # Y-Limits: ebenfalls etwas Puffer um den Peak
+            # Y-Achse anpassen
             peak_min = np.min(s_slice)
             peak_max = np.max(s_slice)
             if peak_min != peak_max:
@@ -156,9 +178,9 @@ def main():
             axes[1].set_ylabel("Signal (µS/cm)")
             axes[1].legend()
             
-            plt.tight_layout(rect=[0, 0.03, 1, 0.92])  # etwas Platz für suptitle
+            plt.tight_layout(rect=[0, 0.03, 1, 0.92])
             
-            # 6) Speichern als PDF
+            # 7) Speichern als PDF
             base_name = os.path.splitext(os.path.basename(datei))[0]
             output_file = os.path.join(output_dir, base_name + ".pdf")
             plt.savefig(output_file)
