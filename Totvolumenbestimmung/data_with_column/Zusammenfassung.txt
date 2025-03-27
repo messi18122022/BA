@@ -1,0 +1,2 @@
+Mittelwert: 1.380 mL
+Standardabweichung: 0.012 mL
