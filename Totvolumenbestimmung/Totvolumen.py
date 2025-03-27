@@ -3,6 +3,9 @@ import glob
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+plt.rcParams['text.usetex'] = True
+plt.rcParams['font.family'] = 'serif'
+plt.rcParams['font.serif'] = ['Computer Modern']
 from matplotlib.backends.backend_pdf import PdfPages
 
 # Parameter: Flussrate in mL/min
@@ -98,28 +101,26 @@ def process_directory(directory, has_header=True):
         
         # Erstellung der Visualisierung
         with PdfPages(file.replace('.txt', '.pdf')) as pdf:
-            fig, axs = plt.subplots(1, 2, figsize=(12, 6))
+            fig, axs = plt.subplots(1, 2, figsize=(16/2.54, 8/2.54))
             
             # Gesamtansicht
-            axs[0].plot(time, intensity, color='grey', linestyle='-', linewidth=0.5, label='Original Chromatogramm')
-            axs[0].plot(time, intensity, label='Rohdaten')
-            axs[0].axvline(x=retention_time, color='red', linestyle='--', label='Retentionszeit')
+            axs[0].plot(time, intensity, label='Chromatogramm')
+            axs[0].axvline(x=retention_time, color='red', linestyle='--', label=f'$t_R = {retention_time:.3f}$ min')
             axs[0].set_xlabel('Zeit (min)')
             axs[0].set_ylabel('Signal (mAU)')
-            axs[0].set_title(f'Chromatogramm: {os.path.basename(file)} - Gesamtansicht')
-            axs[0].legend()
+            axs[0].legend(loc='upper right')
             
-            # Zoom um den Peak
-            peak_index = np.argmax(intensity)
-            zoom_margin = 0.5  # Zeitbereich um den Peak
-            axs[1].plot(time, intensity, color='grey', linestyle='-', linewidth=0.5, label='Original Chromatogramm')
-            axs[1].plot(time, intensity, label='Rohdaten')
-            axs[1].set_xlim(max(time[peak_index] - zoom_margin, 0), time[peak_index] + zoom_margin)
-            axs[1].axvline(x=retention_time, color='red', linestyle='--', label='Retentionszeit')
+            # Manuelle Zoom-Einstellung
+            axs[1].plot(time, intensity, label='Chromatogramm')
+            if has_header:
+                axs[1].set_xlim(1.0, 2.5)  # Zoombereich für data_with_column
+            else:
+                axs[1].set_xlim(0.0, 0.6)  # Zoombereich für data_without_column
+            
+            axs[1].axvline(x=retention_time, color='red', linestyle='--', label=f'$t_R = {retention_time:.3f}$ min')
             axs[1].set_xlabel('Zeit (min)')
             axs[1].set_ylabel('Signal (mAU)')
-            axs[1].set_title(f'Chromatogramm: {os.path.basename(file)} - Zoom')
-            axs[1].legend()
+            axs[1].legend(loc='upper right')
             
             plt.tight_layout()
             pdf.savefig(fig)
