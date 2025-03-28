@@ -101,26 +101,26 @@ def process_directory(directory, has_header=True):
         
         # Erstellung der Visualisierung
         with PdfPages(file.replace('.txt', '.pdf')) as pdf:
-            fig, axs = plt.subplots(1, 2, figsize=(16/2.54, 8/2.54))
+            fig, axs = plt.subplots(1, 2, figsize=(16/2.54, 5.8/2.54))
             
             # Gesamtansicht
             axs[0].plot(time, intensity, label='Chromatogramm')
             axs[0].axvline(x=retention_time, color='red', linestyle='--', label=f'$t_R = {retention_time:.3f}$ min')
-            axs[0].set_xlabel('Zeit (min)')
-            axs[0].set_ylabel('Signal (mAU)')
+            axs[0].set_xlabel('Zeit $t$ / min')
+            axs[0].set_ylabel('Absorbanz $A$ / 10$^3$')
             axs[0].legend(loc='upper right')
             
             # Manuelle Zoom-Einstellung
             axs[1].plot(time, intensity, label='Chromatogramm')
             if has_header:
-                axs[1].set_xlim(1.0, 2.5)  # Zoombereich für data_with_column
+                axs[1].set_xlim(1.0, 1.8)  # Zoombereich für data_with_column
             else:
-                axs[1].set_xlim(0.0, 0.6)  # Zoombereich für data_without_column
+                axs[1].set_xlim(0.0, 0.2)  # Zoombereich für data_without_column
             
             axs[1].axvline(x=retention_time, color='red', linestyle='--', label=f'$t_R = {retention_time:.3f}$ min')
-            axs[1].set_xlabel('Zeit (min)')
-            axs[1].set_ylabel('Signal (mAU)')
-            axs[1].legend(loc='upper right')
+            axs[1].set_xlabel('Zeit $t$ / min')
+            axs[1].set_ylabel('Absorbanz $A$ / 10$^3$')
+
             
             plt.tight_layout()
             pdf.savefig(fig)
