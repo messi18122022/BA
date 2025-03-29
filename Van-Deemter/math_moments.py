@@ -3,6 +3,7 @@ import glob
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.optimize import curve_fit
 
 # --------------------- Konfiguration ---------------------
 # Ordner, in denen die Messdateien hinterlegt sind
@@ -227,13 +228,41 @@ def main():
     else:
         flow_rates = np.linspace(default_flow_rates[0], default_flow_rates[-1], n_measurements)
 
-    # van Deemter Plot: HETP vs. Flussrate
+    # Fit des van Deemter Plots: HETP = A + B/Flussrate + C*Flussrate
+    def van_deemter(u, A, B, C):
+        return A + B/u + C*u
+    
+    try:
+        flow_rates_array = np.array(flow_rates)
+        HETP_array = np.array(HETP_list)
+        popt, pcov = curve_fit(van_deemter, flow_rates_array, HETP_array)
+        perr = np.sqrt(np.diag(pcov))
+        # Feinere Gitter für den Fit-Plot
+        u_fit = np.linspace(flow_rates_array.min(), flow_rates_array.max(), 200)
+        HETP_fit = van_deemter(u_fit, *popt)
+        # Berechnung des Bestimmtheitsmaßes (R²)
+        residuals = HETP_array - van_deemter(flow_rates_array, *popt)
+        ss_res = np.sum(residuals**2)
+        ss_tot = np.sum((HETP_array - np.mean(HETP_array))**2)
+        r_squared = 1 - (ss_res/ss_tot)
+    except Exception as e:
+        print(f"Fehler beim Fitten des van Deemter Plots: {e}")
+        popt = [np.nan, np.nan, np.nan]
+        perr = [np.nan, np.nan, np.nan]
+        r_squared = np.nan
+
+    # van Deemter Plot: HETP vs. Flussrate mit Fit
     plt.figure(figsize=(8, 6))
-    plt.plot(flow_rates, HETP_list, marker="o", linestyle="-")
+    plt.scatter(flow_rates, HETP_list, label="Messdaten", color="blue")
+    plt.plot(u_fit, HETP_fit, 'r-', label="Fit: HETP = A + B/Flussrate + C*Flussrate")
     plt.xlabel("Flussrate (mL/min)")
     plt.ylabel("HETP (mm)")
     plt.title("van Deemter Plot\n(HETP vs. Flussrate)")
     plt.grid(True)
+    # Anzeige der Fit-Ergebnisse
+    fit_text = f"A = {popt[0]:.3f} ± {perr[0]:.3f}\nB = {popt[1]:.3f} ± {perr[1]:.3f}\nC = {popt[2]:.3f} ± {perr[2]:.3f}\nR² = {r_squared:.3f}"
+    plt.text(0.05, 0.95, fit_text, transform=plt.gca().transAxes, fontsize=10, verticalalignment='top', bbox=dict(boxstyle="round", fc="w"))
+    plt.legend()
     plt.tight_layout()
     van_deemter_output_file = os.path.join(OUTPUT_DIR, "van_Deemter_Plot.pdf")
     plt.savefig(van_deemter_output_file)
@@ -243,6 +272,23 @@ def main():
     # Erzeuge das zweite PDF mit detaillierten H-Werte-Berechnungen
     erstelle_hwerte_pdf(tR_total_list, sigma2_total_list, tR_extra_list, sigma2_extra_list,
                          tR_column_list, W_column_list, N_list, HETP_list, OUTPUT_DIR)
+
+    # Exportiere die Tabelle der H-Werte-Berechnungen als Excel-Datei
+    excel_data = {
+        "Messung": list(range(1, len(tR_total_list)+1)),
+        "tR_total (min)": tR_total_list,
+        "σ²_total (min²)": sigma2_total_list,
+        "tR_extra (min)": tR_extra_list,
+        "σ²_extra (min²)": sigma2_extra_list,
+        "tR_column (min)": tR_column_list,
+        "W_column (min)": W_column_list,
+        "N": N_list,
+        "HETP (mm)": HETP_list
+    }
+    df_excel = pd.DataFrame(excel_data)
+    excel_output_file = os.path.join(OUTPUT_DIR, "Hwerte_Berechnungen.xlsx")
+    df_excel.to_excel(excel_output_file, index=False)
+    print("Die Excel-Tabelle mit den H-Werten-Berechnungen wurde erfolgreich erstellt und gespeichert.")
 
 if __name__ == '__main__':
     main()
