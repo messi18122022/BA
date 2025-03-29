@@ -69,7 +69,7 @@ def berechne_halbwertsbreite(zeit, signal):
 
 def process_files(filepaths, beschriftung):
     tR_list = []
-    fwhm_list = []
+    sigma2_list = []
     for datei in filepaths:
         try:
             df = pd.read_csv(datei, delimiter=',')
@@ -84,14 +84,18 @@ def process_files(filepaths, beschriftung):
                 continue
             t_slice = zeit[left_idx:right_idx+1]
             s_slice = signal[left_idx:right_idx+1]
-            t_mean, _ = momentanalyse(t_slice, s_slice)
-            t_left, t_right = berechne_halbwertsbreite(t_slice, s_slice)
-            fwhm = t_right - t_left
+            t_mean, sigma = momentanalyse(t_slice, s_slice)
+            if np.isnan(t_mean) or np.isnan(sigma):
+                print(f"Warnung: Keine gültigen Werte in '{datei}' gefunden.")
+                continue
+            sigma2 = sigma**2
+            t_left = t_mean - sigma
+            t_right = t_mean + sigma
             tR_list.append(t_mean)
-            fwhm_list.append(fwhm)
+            sigma2_list.append(sigma2)
             # Erzeuge Plot: Gesamtes Chromatogramm und Zoom auf den Peak
             fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-            fig.suptitle(f"{os.path.basename(datei)}\nRetentionszeit: {t_mean:.2f} min, FWHM: {fwhm:.2f} min")
+            fig.suptitle(f"{os.path.basename(datei)}\nRetentionszeit: {t_mean:.2f} min, σ²: {sigma2:.2f} min²")
             axes[0].plot(zeit, signal, label="Signal", color="blue")
             axes[0].axvspan(zeit[left_idx], zeit[right_idx], color="orange", alpha=0.2, label="Peak-Fenster")
             axes[0].axvline(t_mean, color="red", linestyle="--", label="Retentionszeit")
@@ -124,9 +128,9 @@ def process_files(filepaths, beschriftung):
         except Exception as e:
             print(f"Fehler beim Verarbeiten der Datei '{datei}': {e}")
     print(f"Alle {beschriftung} Plots wurden als PDF gespeichert.")
-    return tR_list, fwhm_list
+    return tR_list, sigma2_list
 
-def erstelle_hwerte_pdf(tR_total_list, fwhm_total_list, tR_extra_list, fwhm_extra_list,
+def erstelle_hwerte_pdf(tR_total_list, sigma2_total_list, tR_extra_list, sigma2_extra_list,
                          tR_column_list, W_column_list, N_list, HETP_list, output_dir):
     """
     Erzeugt ein PDF, in dem der Rechenweg für die H-Werte (Säulenparameter) für jede Messung
@@ -138,18 +142,17 @@ def erstelle_hwerte_pdf(tR_total_list, fwhm_total_list, tR_extra_list, fwhm_extr
         # Formatierung der Werte (auf 3 Nachkommastellen)
         messung = i + 1
         tR_total = f"{tR_total_list[i]:.3f}"
-        fwhm_total = f"{fwhm_total_list[i]:.3f}"
+        sigma2_total = f"{sigma2_total_list[i]:.3f}"
         tR_extra = f"{tR_extra_list[i]:.3f}"
-        fwhm_extra = f"{fwhm_extra_list[i]:.3f}"
+        sigma2_extra = f"{sigma2_extra_list[i]:.3f}"
         tR_column = f"{tR_column_list[i]:.3f}"
         W_column = f"{W_column_list[i]:.3f}"
         N_val = f"{N_list[i]:.3f}"
         HETP = f"{HETP_list[i]:.3f}"
-        daten.append([messung, tR_total, fwhm_total, tR_extra, fwhm_extra, tR_column, W_column, N_val, HETP])
+        daten.append([messung, tR_total, sigma2_total, tR_extra, sigma2_extra, tR_column, W_column, N_val, HETP])
     
     # Spaltenüberschriften
-    spalten = ["Messung", "tR_total (min)", "FWHM_total (min)", "tR_extra (min)",
-               "FWHM_extra (min)", "tR_column (min)", "W_column (min)", "N", "HETP (mm)"]
+    spalten = ["Messung", "tR_total (min)", "σ²_total (min²)", "tR_extra (min)", "σ²_extra (min²)", "tR_column (min)", "W_column (min)", "N", "HETP (mm)"]
     
     # Erstelle eine neue Figur und füge die Tabelle ein
     fig, ax = plt.subplots(figsize=(12, 0.5 * (len(daten)+2)))
@@ -159,13 +162,13 @@ def erstelle_hwerte_pdf(tR_total_list, fwhm_total_list, tR_extra_list, fwhm_extr
     table.auto_set_font_size(False)
     table.set_fontsize(10)
     table.scale(1, 1.5)
-    plt.title("Nachvollziehbare Berechnungen der H-Werte\nRechenweg: tR_column = tR_total - tR_extra,  W_column = sqrt(fwhm_total² - fwhm_extra²),  N = (tR_column / W_column)²,  HETP = 150 mm / N", fontsize=12)
+    plt.title("Nachvollziehbare Berechnungen der H-Werte\nRechenweg: tR_column = tR_total - tR_extra,  W_column = 2 * sqrt(σ²_total - σ²_extra),  N = (tR_column / W_column)²,  HETP = 150 mm / N", fontsize=12)
     
     output_file = os.path.join(output_dir, "Hwerte_Berechnungen.pdf")
     plt.tight_layout()
     plt.savefig(output_file)
     plt.close()
-    print("Das PDF mit den H-Werte-Berechnungen wurde erfolgreich erstellt und gespeichert.")
+    print("Das PDF mit den H-Werten-Berechnungen wurde erfolgreich erstellt und gespeichert.")
 
 def main():
     # Dateien aus den angegebenen Ordnern laden
@@ -176,7 +179,7 @@ def main():
     if not files_with_column:
         print("Es wurden keine Dateien für Messungen mit Säule gefunden.")
         return
-    tR_total_list, fwhm_total_list = process_files(files_with_column, "mit Säule")
+    tR_total_list, sigma2_total_list = process_files(files_with_column, "mit Säule")
 
     files_without_column = sorted(
         glob.glob(os.path.join(ORDNER_OHNE_SÄULE, "*.csv")) + 
@@ -185,7 +188,7 @@ def main():
     if not files_without_column:
         print("Es wurden keine Dateien für Messungen ohne Säule gefunden.")
         return
-    tR_extra_list, fwhm_extra_list = process_files(files_without_column, "ohne Säule")
+    tR_extra_list, sigma2_extra_list = process_files(files_without_column, "ohne Säule")
 
     if len(tR_total_list) != len(tR_extra_list):
         print("Die Anzahl der Messungen mit und ohne Säule stimmt nicht überein.")
@@ -199,7 +202,7 @@ def main():
     for i in range(len(tR_total_list)):
         tR_column = tR_total_list[i] - tR_extra_list[i]
         try:
-            W_column = np.sqrt(fwhm_total_list[i]**2 - fwhm_extra_list[i]**2)
+            W_column = 2 * np.sqrt(sigma2_total_list[i] - sigma2_extra_list[i])
         except Exception as e:
             print(f"Fehler bei der Berechnung der korrigierten Peakbreite für Messung {i+1}: {e}")
             continue
@@ -238,7 +241,7 @@ def main():
     print("Der van Deemter Plot wurde erfolgreich erstellt und gespeichert.")
 
     # Erzeuge das zweite PDF mit detaillierten H-Werte-Berechnungen
-    erstelle_hwerte_pdf(tR_total_list, fwhm_total_list, tR_extra_list, fwhm_extra_list,
+    erstelle_hwerte_pdf(tR_total_list, sigma2_total_list, tR_extra_list, sigma2_extra_list,
                          tR_column_list, W_column_list, N_list, HETP_list, OUTPUT_DIR)
 
 if __name__ == '__main__':
