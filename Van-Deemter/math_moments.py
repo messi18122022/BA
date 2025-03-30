@@ -43,31 +43,6 @@ def momentanalyse(zeit, signal):
     stdev = np.sqrt(varianz)
     return t_mean, stdev
 
-def berechne_halbwertsbreite(zeit, signal):
-    i_peak = np.argmax(signal)
-    peak_value = signal[i_peak]
-    baseline = np.min(signal)
-    half_max = baseline + (peak_value - baseline) / 2.0
-    left_index = i_peak
-    while left_index > 0 and signal[left_index] > half_max:
-        left_index -= 1
-    if left_index == 0:
-        t_left = zeit[0]
-    else:
-        t1, t2 = zeit[left_index], zeit[left_index + 1]
-        s1, s2 = signal[left_index], signal[left_index + 1]
-        t_left = t1 + (half_max - s1) * (t2 - t1) / (s2 - s1) if s2 != s1 else t1
-    right_index = i_peak
-    while right_index < len(signal) - 1 and signal[right_index] > half_max:
-        right_index += 1
-    if right_index == len(signal) - 1:
-        t_right = zeit[-1]
-    else:
-        t1, t2 = zeit[right_index - 1], zeit[right_index]
-        s1, s2 = signal[right_index - 1], signal[right_index]
-        t_right = t1 + (half_max - s1) * (t2 - t1) / (s2 - s1) if s2 != s1 else t2
-    return t_left, t_right
-
 def process_files(filepaths, beschriftung):
     tR_list = []
     sigma2_list = []
@@ -100,7 +75,7 @@ def process_files(filepaths, beschriftung):
             axes[0].plot(zeit, signal, label="Signal", color="blue")
             axes[0].axvspan(zeit[left_idx], zeit[right_idx], color="orange", alpha=0.2, label="Peak-Fenster")
             axes[0].axvline(t_mean, color="red", linestyle="--", label="Retentionszeit")
-            axes[0].axvspan(t_left, t_right, color="red", alpha=0.1, label="FWHM")
+            axes[0].axvspan(t_left, t_right, color="red", alpha=0.1, label="t_mean ± σ")
             axes[0].set_title("Gesamtes Chromatogramm")
             axes[0].set_xlabel("Zeit (min)")
             axes[0].set_ylabel("Signal (µS/cm)")
@@ -108,7 +83,7 @@ def process_files(filepaths, beschriftung):
             axes[1].plot(zeit, signal, label="Signal", color="blue")
             axes[1].axvspan(zeit[left_idx], zeit[right_idx], color="orange", alpha=0.2)
             axes[1].axvline(t_mean, color="red", linestyle="--", label="Retentionszeit")
-            axes[1].axvspan(t_left, t_right, color="red", alpha=0.1, label="FWHM")
+            axes[1].axvspan(t_left, t_right, color="red", alpha=0.1, label="t_mean ± σ")
             x_left = zeit[left_idx] - 0.1 * (zeit[right_idx] - zeit[left_idx])
             x_right = zeit[right_idx] + 0.1 * (zeit[right_idx] - zeit[left_idx])
             axes[1].set_xlim(x_left, x_right)
