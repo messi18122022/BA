@@ -11,7 +11,7 @@ ORDNER_MIT_SÄULE = "Van-Deemter/Kationentauscher/mit_saule"
 ORDNER_OHNE_SÄULE = "Van-Deemter/Kationentauscher/ohne_saule"
 
 # Ordner, in dem die Plots gespeichert werden sollen
-OUTPUT_DIR = "Van-Deemter"  # Dieser Ordner wird sowohl für den van Deemter Plot als auch für die H-Werte-Rechnung genutzt
+OUTPUT_DIR = "Van-Deemter/Kationentauscher"  # Dieser Ordner wird sowohl für den van Deemter Plot als auch für die H-Werte-Rechnung genutzt
 
 # Standard-Flussraten-Vektor (Standard: 2.5, 2.4, 2.3, ..., 0.1)
 default_flow_rates = np.arange(2.5, 0.0, -0.1)
