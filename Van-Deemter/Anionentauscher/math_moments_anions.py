@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
+from scipy.signal import find_peaks, peak_widths
 
 # --------------------- Konfiguration ---------------------
 # Ordner, in denen die Messdateien hinterlegt sind
@@ -17,21 +18,45 @@ OUTPUT_DIR = "Van-Deemter/Anionentauscher"  # Dieser Ordner wird sowohl für den
 default_flow_rates = np.arange(2.0, 0.0, -0.1)
 # ----------------------------------------------------------
 
-def finde_peak_fenster(zeit, signal, schwellen_prozent=0.05):
+def finde_peak_fenster(zeit, signal, prominence=0.1):
+    """
+    Findet den größten Peak im Signal anhand seiner Prominenz.
+    Falls das Signal überwiegend negativ ist, wird es zur Detektion invertiert.
+    """
     if len(zeit) == 0 or len(signal) == 0:
         return None, None
-    i_peak = np.argmax(signal)
-    baseline = np.min(signal)
-    peak_value = signal[i_peak]
-    if peak_value == baseline:
+
+    # Falls das Signal überwiegend negativ ist, invertiere es für die Peaksuche
+    if np.median(signal) < 0:
+        signal_for_detection = -signal
+    else:
+        signal_for_detection = signal
+
+    # Alle Peaks mit mindestens dieser Prominenz finden
+    peaks, properties = find_peaks(signal_for_detection, prominence=prominence)
+    if len(peaks) == 0:
         return None, None
-    threshold = baseline + schwellen_prozent * (peak_value - baseline)
-    left_index = i_peak
-    while left_index > 0 and signal[left_index] > threshold:
-        left_index -= 1
-    right_index = i_peak
-    while right_index < len(signal) - 1 and signal[right_index] > threshold:
-        right_index += 1
+
+    # Wähle den Peak mit der höchsten Prominenz aus
+    i_main_peak = np.argmax(properties["prominences"])
+    peak_index = peaks[i_main_peak]
+
+    # Bestimme die linke und rechte Basis des Hauptpeaks
+    left_base = properties["left_bases"][i_main_peak]
+    right_base = properties["right_bases"][i_main_peak]
+    left_index = int(left_base)
+    right_index = int(right_base)
+
+    # Sanity-Checks
+    left_index = max(0, left_index)
+    right_index = min(len(signal) - 1, right_index)
+    if left_index >= right_index:
+        return None, None
+
+    # Wenn das Peak-Fenster einen zu grossen Anteil des gesamten Signals umfasst, ignoriere es
+    if (right_index - left_index) > 0.5 * len(signal):
+        return None, None
+
     return left_index, right_index
 
 def momentanalyse(zeit, signal):
@@ -54,7 +79,7 @@ def process_files(filepaths, beschriftung):
                 continue
             zeit = df.iloc[:, 0].values
             signal = df.iloc[:, 1].values
-            left_idx, right_idx = finde_peak_fenster(zeit, signal, schwellen_prozent=0.05)
+            left_idx, right_idx = finde_peak_fenster(zeit, signal, prominence=0.1)
             if left_idx is None or right_idx is None:
                 print(f"Warnung: Kein Peak in '{datei}' gefunden.")
                 continue
