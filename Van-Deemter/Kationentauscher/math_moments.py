@@ -244,6 +244,66 @@ def main():
     plt.close()
     print("Der van Deemter Plot wurde erfolgreich erstellt und gespeichert.")
 
+    # van Deemter Plot nur mit den Daten ohne Säule
+    tR_extra_only_list = tR_extra_list
+    W_extra_only_list = []
+    N_extra_only_list = []
+    HETP_extra_only_list = []
+    for i in range(len(tR_extra_only_list)):
+        try:
+            W_extra = 2 * np.sqrt(sigma2_extra_list[i])
+        except Exception as e:
+            print(f"Fehler bei der Berechnung für Messung ohne Säule {i+1}: {e}")
+            continue
+        if W_extra <= 0:
+            print(f"Warnung: Für Messung ohne Säule {i+1} ergibt sich eine nicht sinnvolle Peakbreite (W_extra={W_extra}).")
+            continue
+        N_extra = (tR_extra_only_list[i] / W_extra) ** 2
+        HETP_extra = 150 / N_extra
+        W_extra_only_list.append(W_extra)
+        N_extra_only_list.append(N_extra)
+        HETP_extra_only_list.append(HETP_extra)
+
+    n_measurements_extra = len(HETP_extra_only_list)
+    if len(default_flow_rates) == n_measurements_extra:
+        flow_rates_extra = default_flow_rates
+    else:
+        flow_rates_extra = np.linspace(default_flow_rates[0], default_flow_rates[-1], n_measurements_extra)
+
+    # Fit
+    try:
+        flow_rates_extra_array = np.array(flow_rates_extra)
+        HETP_extra_array = np.array(HETP_extra_only_list)
+        popt_extra, pcov_extra = curve_fit(van_deemter, flow_rates_extra_array, HETP_extra_array)
+        perr_extra = np.sqrt(np.diag(pcov_extra))
+        u_fit_extra = np.linspace(flow_rates_extra_array.min(), flow_rates_extra_array.max(), 200)
+        HETP_fit_extra = van_deemter(u_fit_extra, *popt_extra)
+        residuals_extra = HETP_extra_array - van_deemter(flow_rates_extra_array, *popt_extra)
+        ss_res_extra = np.sum(residuals_extra ** 2)
+        ss_tot_extra = np.sum((HETP_extra_array - np.mean(HETP_extra_array)) ** 2)
+        r_squared_extra = 1 - (ss_res_extra / ss_tot_extra)
+    except Exception as e:
+        print(f"Fehler beim Fitten der Daten ohne Säule: {e}")
+        popt_extra = [np.nan, np.nan, np.nan]
+        perr_extra = [np.nan, np.nan, np.nan]
+        r_squared_extra = np.nan
+
+    plt.figure(figsize=(8, 6))
+    plt.scatter(flow_rates_extra, HETP_extra_only_list, label="Messdaten", color="blue")
+    plt.plot(u_fit_extra, HETP_fit_extra, 'r-', label="Fit: HETP = A + B/Flussrate + C*Flussrate")
+    plt.xlabel("Flussrate (mL/min)")
+    plt.ylabel("HETP (mm)")
+    plt.title("van Deemter Plot nur ohne Säule\n(HETP vs. Flussrate)")
+    plt.grid(True)
+    fit_text_extra = f"A = {popt_extra[0]:.3f} ± {perr_extra[0]:.3f}\nB = {popt_extra[1]:.3f} ± {perr_extra[1]:.3f}\nC = {popt_extra[2]:.3f} ± {perr_extra[2]:.3f}\nR² = {r_squared_extra:.3f}"
+    plt.text(0.05, 0.95, fit_text_extra, transform=plt.gca().transAxes, fontsize=10, verticalalignment='top', bbox=dict(boxstyle="round", fc="w"))
+    plt.legend()
+    plt.tight_layout()
+    van_deemter_extra_output_file = os.path.join(OUTPUT_DIR, "van_Deemter_Plot_nur_ohne_Saeule.pdf")
+    plt.savefig(van_deemter_extra_output_file)
+    plt.close()
+    print("Der van Deemter Plot nur mit den Messdaten ohne Säule wurde erfolgreich erstellt und gespeichert.")
+
     # Erzeuge das zweite PDF mit detaillierten H-Werte-Berechnungen
     erstelle_hwerte_pdf(tR_total_list, sigma2_total_list, tR_extra_list, sigma2_extra_list,
                          tR_column_list, W_column_list, N_list, HETP_list, OUTPUT_DIR)
