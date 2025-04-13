@@ -117,10 +117,14 @@ def process_files(filepaths, beschriftung, integrationsgrenzen):
             axes[0].axvspan(zeit[left_idx], zeit[right_idx], color="orange", alpha=0.2, label="Peak-Fenster")
             axes[0].axvline(t_mean, color="red", linestyle="--", label="Retentionszeit")
             axes[0].axvspan(t_mean - sigma, t_mean + sigma, color="red", alpha=0.1, label="t\_mean $\pm\sigma$")
+            axes[0].set_xlabel("Zeit (min)")
+            axes[0].set_ylabel("Leitfähigkeit ($\\mu$S/cm)")
             axes[1].plot(zeit, signal, color="blue", label="Signal")
             axes[1].axvspan(zeit[left_idx], zeit[right_idx], color="orange", alpha=0.2)
             axes[1].axvline(t_mean, color="red", linestyle="--", label="Retentionszeit")
             axes[1].axvspan(t_mean - sigma, t_mean + sigma, color="red", alpha=0.1, label="t\_mean $\pm\sigma$")
+            axes[1].set_xlabel("Zeit (min)")
+            axes[1].set_ylabel("Leitfähigkeit ($\\mu$S/cm)")
             # Dynamische X-Achsen-Berechnung für den Zoom
             x_left = zeit[left_idx] - 0.1 * (zeit[right_idx] - zeit[left_idx])
             x_right = zeit[right_idx] + 0.1 * (zeit[right_idx] - zeit[left_idx])
@@ -159,9 +163,9 @@ def erstelle_hwerte_pdf(tR_total_list, sigma2_total_list, tR_extra_list, sigma2_
         HETP = f"{HETP_list[i]:.3f}"
         daten.append([messung, tR_total, sigma2_total, tR_extra, sigma2_extra, tR_column, sigma_column, N_val, HETP])
     
-    spalten = ["Messung", "tR_total (min)", "σ²_total (min²)", "tR_extra (min)", "σ²_extra (min²)", 
-               "tR_column (min)", "σ_column (min)", "N", "HETP (mm)"]
-    
+    spalten = ["Messung", "tR_total (min)", "$\\sigma^2_{total}$ (min$^2$)", "tR_extra (min)", "$\\sigma^2_{extra}$ (min$^2$)",
+            "tR_column (min)", "$\\sigma_{column}$ (min)", "N", "HETP (mm)"]
+        
     fig, ax = plt.subplots(figsize=(12, 0.5 * (len(daten)+2)))
     ax.axis('tight')
     ax.axis('off')
@@ -205,10 +209,10 @@ def main():
         # Flussraten-Vektor für Messungen mit Säule
         flow_rates_total = np.linspace(default_flow_rates[0], default_flow_rates[-1], len(tR_total_list))
         plt.figure(figsize=(4, 4))
-        plt.scatter(flow_rates_total, tR_total_list, color='blue', label='Mit Säule')
+        plt.scatter(flow_rates_total, tR_total_list, color='blue')
         plt.xlabel("Flussrate (mL/min)")
         plt.ylabel("Retentionszeit $t_R$ (min)")
-        plt.legend()
+        plt.grid(True)
         aggregated_with_output = os.path.join(OUTPUT_DIR, 'Aggregated_Mit_Saule.pdf')
         plt.savefig(aggregated_with_output)
         plt.close()
@@ -217,10 +221,10 @@ def main():
         # Flussraten-Vektor für Messungen ohne Säule
         flow_rates_extra = np.linspace(default_flow_rates[0], default_flow_rates[-1], len(tR_extra_list))
         plt.figure(figsize=(4, 4))
-        plt.scatter(flow_rates_extra, tR_extra_list, color='green', label='Ohne Säule')
+        plt.scatter(flow_rates_extra, tR_extra_list, color='blue')
         plt.xlabel("Flussrate (mL/min)")
         plt.ylabel("Retentionszeit $t_R$ (min)")
-        plt.legend()
+        plt.grid(True)
         aggregated_without_output = os.path.join(OUTPUT_DIR, 'Aggregated_Ohne_Saule.pdf')
         plt.savefig(aggregated_without_output)
         plt.close()
@@ -232,10 +236,10 @@ def main():
         flow_rates_total = np.linspace(default_flow_rates[0], default_flow_rates[-1], len(tR_total_list))
         sigma_total = np.sqrt(np.array(sigma2_total_list))
         plt.figure(figsize=(4, 4))
-        plt.scatter(flow_rates_total, sigma_total, color='blue', label='Mit Säule')
+        plt.scatter(flow_rates_total, sigma_total, color='blue')
         plt.xlabel("Flussrate (mL/min)")
         plt.ylabel("Peakbreite $\sigma$ (min)")
-        plt.legend()
+        plt.grid(True)
         aggregated_peak_total = os.path.join(OUTPUT_DIR, 'Aggregated_Peakbreite_Mit_Saule.pdf')
         plt.savefig(aggregated_peak_total)
         plt.close()
@@ -245,10 +249,10 @@ def main():
         flow_rates_extra = np.linspace(default_flow_rates[0], default_flow_rates[-1], len(tR_extra_list))
         sigma_extra = np.sqrt(np.array(sigma2_extra_list))
         plt.figure(figsize=(4, 4))
-        plt.scatter(flow_rates_extra, sigma_extra, color='green', label='Ohne Säule')
+        plt.scatter(flow_rates_extra, sigma_extra, color='blue')
         plt.xlabel("Flussrate (mL/min)")
         plt.ylabel("Peakbreite $\sigma$ (min)")
-        plt.legend()
+        plt.grid(True)
         aggregated_peak_extra = os.path.join(OUTPUT_DIR, 'Aggregated_Peakbreite_Ohne_Saule.pdf')
         plt.savefig(aggregated_peak_extra)
         plt.close()
@@ -282,7 +286,7 @@ def main():
             HETP_fit = None
             r_squared = np.nan
         plt.figure(figsize=(8, 6))
-        plt.scatter(flow_rates_total, HETP_total, color='purple', label='Messdaten ohne Systemkorrektur')
+        plt.scatter(flow_rates_total, HETP_total, color='blue', label='Messdaten ohne Systemkorrektur')
         if u_fit is not None:
             plt.plot(u_fit, HETP_fit, 'r-', label=r"Fit: HETP = A + B/Flussrate + C$\cdot$Flussrate")
         plt.xlabel("Flussrate (mL/min)")
@@ -348,16 +352,16 @@ def main():
             HETP_fit_ex = None
             r_squared_ex = np.nan
         plt.figure(figsize=(8, 6))
-        plt.scatter(flow_rates_ohne, HETP_ohne, color='orange', label='Messdaten ohne Säule')
+        plt.scatter(flow_rates_ohne, HETP_ohne, color='blue', label='Messdaten ohne Säule')
         if u_fit_ex is not None:
             plt.plot(u_fit_ex, HETP_fit_ex, 'r-', label=r"Fit: HETP = A + B/Flussrate + C$\cdot$Flussrate")
         plt.xlabel("Flussrate (mL/min)")
         plt.ylabel("HETP (mm)")
         plt.grid(True)
-        fit_text_ex = (f"A = {popt_ex[0]:.3f} ± {perr_ex[0]:.3f}\\n"
-                       f"B = {popt_ex[1]:.3f} ± {perr_ex[1]:.3f}\\n"
-                       f"C = {popt_ex[2]:.3f} ± {perr_ex[2]:.3f}\\n"
-                       f"$R^2$ = {r_squared_ex:.3f}")
+        fit_text_ex = (f"$A = {popt_ex[0]:.3f} \\pm {perr_ex[0]:.3f}$\n"
+                       f"$B = {popt_ex[1]:.3f} \\pm {perr_ex[1]:.3f}$\n"
+                       f"$C = {popt_ex[2]:.3f} \\pm {perr_ex[2]:.3f}$\n"
+                       f"$R^2 = {r_squared_ex:.3f}$")
         plt.text(0.05, 0.95, fit_text_ex, transform=plt.gca().transAxes, fontsize=10,
                  verticalalignment='top', bbox=dict(boxstyle="round", fc="w"))
         plt.legend()
