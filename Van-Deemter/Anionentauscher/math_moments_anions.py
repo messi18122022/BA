@@ -112,7 +112,7 @@ def process_files(filepaths, beschriftung, integrationsgrenzen):
             sigma2_list.append(sigma2)
             
             # Erzeuge Plot: Gesamtes Chromatogramm und Zoom auf den Peak (Titel entfernt)
-            fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+            fig, axes = plt.subplots(1, 2, figsize=(7.2, 3))
             axes[0].plot(zeit, signal, color="blue", label="Signal")
             axes[0].axvspan(zeit[left_idx], zeit[right_idx], color="orange", alpha=0.2, label="Peak-Fenster")
             axes[0].axvline(t_mean, color="red", linestyle="--", label="Retentionszeit")
