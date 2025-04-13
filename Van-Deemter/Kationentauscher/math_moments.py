@@ -138,7 +138,7 @@ def erstelle_hwerte_pdf(tR_total_list, sigma2_total_list, tR_extra_list, sigma2_
     table.auto_set_font_size(False)
     table.set_fontsize(10)
     table.scale(1, 1.5)
-    plt.title("Nachvollziehbare Berechnungen der H-Werte\nRechenweg: tR_column = tR_total - tR_extra,  W_column = 2 * sqrt(σ²_total - σ²_extra),  N = (tR_column / W_column)²,  HETP = 150 mm / N", fontsize=12)
+    plt.title("Nachvollziehbare Berechnungen der H-Werte\nRechenweg: tR_column = tR_total - tR_extra,  W_column = sqrt(σ²_total - σ²_extra),  N = (tR_column / W_column)²,  HETP = 150 mm / N", fontsize=12)
     
     output_file = os.path.join(output_dir, "Hwerte_Berechnungen.pdf")
     plt.tight_layout()
@@ -178,7 +178,7 @@ def main():
     for i in range(len(tR_total_list)):
         tR_column = tR_total_list[i] - tR_extra_list[i]
         try:
-            W_column = 2 * np.sqrt(sigma2_total_list[i] - sigma2_extra_list[i])
+            W_column = np.sqrt(sigma2_total_list[i] - sigma2_extra_list[i])
         except Exception as e:
             print(f"Fehler bei der Berechnung der korrigierten Peakbreite für Messung {i+1}: {e}")
             continue

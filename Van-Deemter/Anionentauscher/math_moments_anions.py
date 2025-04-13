@@ -150,7 +150,7 @@ def process_files(filepaths, beschriftung, integrationsgrenzen):
     return tR_list, sigma2_list
 
 def erstelle_hwerte_pdf(tR_total_list, sigma2_total_list, tR_extra_list, sigma2_extra_list,
-                         tR_column_list, W_column_list, N_list, HETP_list, output_dir):
+                         tR_column_list, sigma_column_list, N_list, HETP_list, output_dir):
     """
     Erzeugt ein PDF, in dem der Rechenweg für die H-Werte (Säulenparameter) für jede Messung
     detailliert aufgeführt wird.
@@ -163,12 +163,13 @@ def erstelle_hwerte_pdf(tR_total_list, sigma2_total_list, tR_extra_list, sigma2_
         tR_extra = f"{tR_extra_list[i]:.3f}"
         sigma2_extra = f"{sigma2_extra_list[i]:.3f}"
         tR_column = f"{tR_column_list[i]:.3f}"
-        W_column = f"{W_column_list[i]:.3f}"
+        sigma_column = f"{sigma_column_list[i]:.3f}"
         N_val = f"{N_list[i]:.3f}"
         HETP = f"{HETP_list[i]:.3f}"
-        daten.append([messung, tR_total, sigma2_total, tR_extra, sigma2_extra, tR_column, W_column, N_val, HETP])
+        daten.append([messung, tR_total, sigma2_total, tR_extra, sigma2_extra, tR_column, sigma_column, N_val, HETP])
     
-    spalten = ["Messung", "tR_total (min)", "σ²_total (min²)", "tR_extra (min)", "σ²_extra (min²)", "tR_column (min)", "W_column (min)", "N", "HETP (mm)"]
+    spalten = ["Messung", "tR_total (min)", "σ²_total (min²)", "tR_extra (min)", "σ²_extra (min²)", 
+               "tR_column (min)", "σ_column (min)", "N", "HETP (mm)"]
     
     fig, ax = plt.subplots(figsize=(12, 0.5 * (len(daten)+2)))
     ax.axis('tight')
@@ -177,7 +178,9 @@ def erstelle_hwerte_pdf(tR_total_list, sigma2_total_list, tR_extra_list, sigma2_
     table.auto_set_font_size(False)
     table.set_fontsize(10)
     table.scale(1, 1.5)
-    plt.title("Nachvollziehbare Berechnungen der H-Werte\nRechenweg: tR_column = tR_total - tR_extra,  W_column = 2 * sqrt(σ²_total - σ²_extra),  N = (tR_column / W_column)²,  HETP = 150 mm / N", fontsize=12)
+    plt.title("Nachvollziehbare Berechnungen der H-Werte\nRechenweg: "
+              "tR_column = tR_total - tR_extra,  σ_column = sqrt(σ²_total - σ²_extra),  N = (tR_column / σ_column)²,  HETP = 100 mm / N", 
+              fontsize=12)
     
     output_file = os.path.join(output_dir, "Hwerte_Berechnungen.pdf")
     plt.tight_layout()
@@ -210,23 +213,23 @@ def main():
         return
 
     tR_column_list = []
-    W_column_list = []
+    sigma_column_list = []
     N_list = []
     HETP_list = []
     for i in range(len(tR_total_list)):
         tR_column = tR_total_list[i] - tR_extra_list[i]
         delta_sigma2 = sigma2_total_list[i] - sigma2_extra_list[i]
         if delta_sigma2 <= 0:
-            print(f"Warnung: Für Messung {i+1} ist sigma2_total - sigma2_extra = {delta_sigma2} <= 0. Überspringe Messung.")
+            print(f"Warnung: Für Messung {i+1} ist σ²_total - σ²_extra = {delta_sigma2} <= 0. Überspringe Messung.")
             continue
-        W_column = 2 * np.sqrt(delta_sigma2)
-        if W_column <= 0:
-            print(f"Warnung: Für Messung {i+1} ergibt sich eine nicht sinnvolle Peakbreite (W_column={W_column}).")
+        sigma_column = np.sqrt(delta_sigma2)
+        if sigma_column <= 0:
+            print(f"Warnung: Für Messung {i+1} ergibt sich ein ungültiger σ_column (σ_column={sigma_column}).")
             continue
-        N = (tR_column / W_column) ** 2
-        HETP = 150 / N
+        N = (tR_column / sigma_column) ** 2
+        HETP = 100 / N
         tR_column_list.append(tR_column)
-        W_column_list.append(W_column)
+        sigma_column_list.append(sigma_column)
         N_list.append(N)
         HETP_list.append(HETP)
 
@@ -270,7 +273,10 @@ def main():
     plt.ylabel("HETP (mm)")
     plt.title("van Deemter Plot\n(HETP vs. Flussrate)")
     plt.grid(True)
-    fit_text = f"A = {popt[0]:.3f} ± {perr[0]:.3f}\nB = {popt[1]:.3f} ± {perr[1]:.3f}\nC = {popt[2]:.3f} ± {perr[2]:.3f}\nR² = {r_squared:.3f}"
+    fit_text = (f"A = {popt[0]:.3f} ± {perr[0]:.3f}\n"
+                f"B = {popt[1]:.3f} ± {perr[1]:.3f}\n"
+                f"C = {popt[2]:.3f} ± {perr[2]:.3f}\n"
+                f"R² = {r_squared:.3f}")
     plt.text(0.05, 0.95, fit_text, transform=plt.gca().transAxes, fontsize=10, verticalalignment='top', bbox=dict(boxstyle="round", fc="w"))
     plt.legend()
     plt.tight_layout()
@@ -280,7 +286,7 @@ def main():
     print("Der van Deemter Plot wurde erfolgreich erstellt und gespeichert.")
 
     erstelle_hwerte_pdf(tR_total_list, sigma2_total_list, tR_extra_list, sigma2_extra_list,
-                         tR_column_list, W_column_list, N_list, HETP_list, OUTPUT_DIR)
+                         tR_column_list, sigma_column_list, N_list, HETP_list, OUTPUT_DIR)
 
     excel_data = {
         "Messung": list(range(1, len(tR_total_list)+1)),
@@ -289,7 +295,7 @@ def main():
         "tR_extra (min)": tR_extra_list,
         "σ²_extra (min²)": sigma2_extra_list,
         "tR_column (min)": tR_column_list,
-        "W_column (min)": W_column_list,
+        "σ_column (min)": sigma_column_list,
         "N": N_list,
         "HETP (mm)": HETP_list
     }
