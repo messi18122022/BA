@@ -285,7 +285,7 @@ def main():
             u_fit = None
             HETP_fit = None
             r_squared = np.nan
-        plt.figure(figsize=(8, 6))
+        plt.figure(figsize=(4, 3))
         plt.scatter(flow_rates_total, HETP_total, color='blue', label='Messdaten ohne Systemkorrektur')
         if u_fit is not None:
             plt.plot(u_fit, HETP_fit, 'r-', label=r"Fit: HETP = A + B/Flussrate + C$\cdot$Flussrate")

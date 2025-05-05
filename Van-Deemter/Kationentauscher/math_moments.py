@@ -76,7 +76,6 @@ def process_files(filepaths, beschriftung):
             axes[0].axvspan(zeit[left_idx], zeit[right_idx], color="orange", alpha=0.2, label="Peak-Fenster")
             axes[0].axvline(t_mean, color="red", linestyle="--", label="Retentionszeit")
             axes[0].axvspan(t_left, t_right, color="red", alpha=0.1, label="t_mean ± σ")
-            axes[0].set_title("Gesamtes Chromatogramm")
             axes[0].set_xlabel("Zeit (min)")
             axes[0].set_ylabel("Signal (µS/cm)")
             axes[0].legend()
@@ -92,7 +91,6 @@ def process_files(filepaths, beschriftung):
             if peak_min != peak_max:
                 y_margin = 0.1 * (peak_max - peak_min)
                 axes[1].set_ylim(peak_min - y_margin, peak_max + y_margin)
-            axes[1].set_title("Zoom auf Peak")
             axes[1].set_xlabel("Zeit (min)")
             axes[1].set_ylabel("Signal (µS/cm)")
             axes[1].legend()
@@ -227,17 +225,15 @@ def main():
         r_squared = np.nan
 
     # van Deemter Plot: HETP vs. Flussrate mit Fit
-    plt.figure(figsize=(8, 6))
+    plt.figure(figsize=(6, 3.5))
     plt.scatter(flow_rates, HETP_list, label="Messdaten", color="blue")
     plt.plot(u_fit, HETP_fit, 'r-', label="Fit: HETP = A + B/Flussrate + C*Flussrate")
     plt.xlabel("Flussrate (mL/min)")
     plt.ylabel("HETP (mm)")
-    plt.title("van Deemter Plot\n(HETP vs. Flussrate)")
     plt.grid(True)
     # Anzeige der Fit-Ergebnisse
     fit_text = f"A = {popt[0]:.3f} ± {perr[0]:.3f}\nB = {popt[1]:.3f} ± {perr[1]:.3f}\nC = {popt[2]:.3f} ± {perr[2]:.3f}\nR² = {r_squared:.3f}"
     plt.text(0.05, 0.95, fit_text, transform=plt.gca().transAxes, fontsize=10, verticalalignment='top', bbox=dict(boxstyle="round", fc="w"))
-    plt.legend()
     plt.tight_layout()
     van_deemter_output_file = os.path.join(OUTPUT_DIR, "van_Deemter_Plot.pdf")
     plt.savefig(van_deemter_output_file)
@@ -303,6 +299,55 @@ def main():
     plt.savefig(van_deemter_extra_output_file)
     plt.close()
     print("Der van Deemter Plot nur mit den Messdaten ohne Säule wurde erfolgreich erstellt und gespeichert.")
+    # ---- Neue Plots: Retentionszeit vs Flussrate und Peakbreite vs Flussrate ----
+    
+    # Plot 1: Retentionszeit vs Flussrate (mit Säule)
+    plt.figure(figsize=(4, 4))
+    plt.scatter(flow_rates, tR_total_list, color='blue', label='Retentionszeit (mit Säule)')
+    plt.xlabel("Flussrate (mL/min)")
+    plt.ylabel("Retentionszeit (min)")
+    output_retention_mit = os.path.join(OUTPUT_DIR, "Retentionszeit_vs_Flussrate_mit_Saeule.pdf")
+    plt.tight_layout()
+    plt.grid()
+    plt.savefig(output_retention_mit)
+    plt.close()
+    print("Plot 'Retentionszeit vs Flussrate (mit Säule)' erstellt und gespeichert.")
+    
+    # Plot 2: Peakbreite vs Flussrate (mit Säule)
+    plt.figure(figsize=(6, 4))
+    plt.scatter(flow_rates, W_column_list, color='blue', label='Peakbreite (mit Säule)')
+    plt.xlabel("Flussrate (mL/min)")
+    plt.ylabel("Peakbreite (min)")
+    plt.grid()
+    output_peak_mit = os.path.join(OUTPUT_DIR, "Peakbreite_vs_Flussrate_mit_Saeule.pdf")
+    plt.tight_layout()
+    plt.savefig(output_peak_mit)
+    plt.close()
+    print("Plot 'Peakbreite vs Flussrate (mit Säule)' erstellt und gespeichert.")
+    
+    # Plot 3: Retentionszeit vs Flussrate (ohne Säule)
+    plt.figure(figsize=(4, 4))
+    plt.scatter(flow_rates_extra, tR_extra_list, color='blue', label='Retentionszeit (ohne Säule)')
+    plt.xlabel("Flussrate (mL/min)")
+    plt.ylabel("Retentionszeit (min)")
+    plt.grid()
+    output_retention_ohne = os.path.join(OUTPUT_DIR, "Retentionszeit_vs_Flussrate_ohne_Saeule.pdf")
+    plt.tight_layout()
+    plt.savefig(output_retention_ohne)
+    plt.close()
+    print("Plot 'Retentionszeit vs Flussrate (ohne Säule)' erstellt und gespeichert.")
+    
+    # Plot 4: Peakbreite vs Flussrate (ohne Säule)
+    plt.figure(figsize=(6, 4))
+    plt.scatter(flow_rates_extra, W_extra_only_list, color='blue', label='Peakbreite (ohne Säule)')
+    plt.xlabel("Flussrate (mL/min)")
+    plt.ylabel("Peakbreite (min)")
+    plt.grid()
+    output_peak_ohne = os.path.join(OUTPUT_DIR, "Peakbreite_vs_Flussrate_ohne_Saeule.pdf")
+    plt.tight_layout()
+    plt.savefig(output_peak_ohne)
+    plt.close()
+    print("Plot 'Peakbreite vs Flussrate (ohne Säule)' erstellt und gespeichert.")
 
     # Erzeuge das zweite PDF mit detaillierten H-Werte-Berechnungen
     erstelle_hwerte_pdf(tR_total_list, sigma2_total_list, tR_extra_list, sigma2_extra_list,
