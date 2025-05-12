@@ -258,6 +258,21 @@ def main():
         plt.close()
         print("Der aggregierte Plot der Peakbreiten (ohne Säule) wurde erfolgreich erstellt und gespeichert.")
 
+        # Neuer Plot: Differenz der Peakbreiten (mit Säule - ohne Säule)
+        if len(sigma_total) == len(sigma_extra):
+            sigma_diff = sigma_total - sigma_extra
+            plt.figure(figsize=(5, 5))
+            plt.scatter(flow_rates_total, sigma_diff, color='blue')
+            plt.xlabel("Flussrate (mL/min)")
+            plt.ylabel("Peakbreiten-Differenz $\Delta\sigma$ (min)")
+            plt.title("Peakbreitendifferenz: mit Säule - ohne Säule")
+            plt.axhline(0, color='gray', linestyle='--', linewidth=0.8)
+            plt.grid(True)
+            diff_output = os.path.join(OUTPUT_DIR, 'Peakbreiten_Differenz_Mit_Ohne_Saule.pdf')
+            plt.savefig(diff_output)
+            plt.close()
+            print("Der Plot der Peakbreitendifferenz (mit - ohne Säule) wurde erfolgreich erstellt und gespeichert.")
+
     # Neuer Block: van Deemter Plot ohne Systemkorrektur
     # Hier werden tR_total und sigma_total direkt genutzt, ohne systematische Korrektur durch tR_extra usw.
     if tR_total_list:
