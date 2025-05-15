@@ -1,5 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import glob
+import re
+from PyPDF2 import PdfReader
+from tkinter import Tk
+from tkinter.filedialog import askopenfilenames
 
 # LaTeX aktivieren und Computer Modern als Schriftart verwenden
 plt.rc('text', usetex=True)
@@ -12,26 +17,70 @@ analyten = [r"$\ce{Cl-}$", r"$\ce{NO2-}$", r"$\ce{PO4^{3-}}$", r"$\ce{Br-}$", r"
 x = np.arange(len(analyten))
 width = 0.35  # Breite der Balken
 
+
 # Daten: Eigene Messwerte (Mittelwerte und Standardabweichungen) und Hersteller-Referenzwerte
 
-# Retentionszeit [min]
-ret_measured = np.array([2.830, 3.664, 6.398, 7.912, 9.647, 15.203])
-ret_std = np.array([0.004, 0.006, 0.006, 0.022, 0.030, 0.041])
+# Wähle PDF-Berichte über Dialogfenster
+root = Tk()
+root.withdraw()
+pdf_files = askopenfilenames(title="Wähle PDF-Berichte", filetypes=[("PDF files", "*.pdf")])
+pdf_files = list(pdf_files)
+
+ret_list, plates_list, asy_list, reso_list = [], [], [], []
+
+for pdf_file in pdf_files:
+    reader = PdfReader(pdf_file)
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text() + "\n"
+    lines = text.splitlines()
+    # Finde Tabellenkopf
+    for idx, line in enumerate(lines):
+        if line.startswith("Komponentenname"):
+            header_idx = idx
+            break
+    # Sammle die nächsten 7 nicht-leeren Zeilen (IP + 6 Analyte)
+    data_lines = []
+    i = header_idx + 2
+    while len(data_lines) < 7 and i < len(lines):
+        if lines[i].strip():
+            data_lines.append(lines[i].strip())
+        i += 1
+    # Überspringe IP
+    analyte_lines = data_lines[1:]
+    def parse_val(val):
+        val = val.replace(",", ".")
+        return float(val) if re.match(r"^[0-9.]+$", val) else np.nan
+    ret_row, plates_row, asy_row, reso_row = [], [], [], []
+    for parts in (line.split() for line in analyte_lines):
+        ret_row.append(parse_val(parts[1]))
+        plates_row.append(parse_val(parts[2]))
+        asy_row.append(parse_val(parts[3]))
+        reso_row.append(parse_val(parts[4]))
+    ret_list.append(ret_row)
+    plates_list.append(plates_row)
+    asy_list.append(asy_row)
+    reso_list.append(reso_row)
+
+# In numpy-Arrays umwandeln und Mittelwerte/Std-Abweichungen berechnen
+ret_array = np.array(ret_list)
+plates_array = np.array(plates_list)
+asy_array = np.array(asy_list)
+reso_array = np.array(reso_list)
+
+ret_measured = np.nanmean(ret_array, axis=0)
+ret_std = np.nanstd(ret_array, axis=0, ddof=1)
+plates_measured = np.nanmean(plates_array, axis=0)
+plates_std = np.nanstd(plates_array, axis=0, ddof=1)
+asy_measured = np.nanmean(asy_array, axis=0)
+asy_std = np.nanstd(asy_array, axis=0, ddof=1)
+reso_measured = np.nanmean(reso_array, axis=0)
+reso_std = np.nanstd(reso_array, axis=0, ddof=1)
+
+# Hersteller-Referenzwerte
 ret_ref = np.array([2.97, 3.87, 6.15, 8.59, 10.56, 15.14])
-
-# Theoretische Plattenzahl (Trennstufenzahl)
-plates_measured = np.array([6895, 5921, 7474, 3948, 2508, 6738])
-plates_std = np.array([86, 40, 44, 33, 21, 38])
 plates_ref = np.array([4470, 4214, 5863, 3475, 2224, 6478])
-
-# Asymmetrie
-asy_measured = np.array([1.107, 1.195, 1.087, 1.505, 1.877, 1.017])
-asy_std = np.array([0.010, 0.008, 0.008, 0.011, 0.020, 0.005])
 asy_ref = np.array([1.35, 1.34, 1.21, 1.49, 1.91, 1.01])
-
-# Auflösung
-reso_measured = np.array([5.11, 11.24, 3.787, 2.722, 7.352, np.nan])  # Sulfat: ungültig = np.nan
-reso_std = np.array([0.02, 0.042, 0.024, 0.008, 0.031, 0])
 reso_ref = np.array([4.29, 8.18, 5.39, 2.66, 5.56, np.nan])
 
 # Funktion zur Erstellung eines Balkendiagramms für einen Parameter:
@@ -66,7 +115,7 @@ plt.close(fig)
 # Plot für Asymmetrie
 fig, ax = plt.subplots(figsize=(2.8,2.8))
 plot_bar(ax, asy_measured, asy_std, asy_ref, "Asymmetrie", "Asymmetrie")
-ax.set_ylim(0, 2.7)
+ax.set_ylim(0, 2.9)
 plt.tight_layout()
 fig.savefig("freigabe_säulen/Asymmetrie.pdf", format="pdf")
 plt.close(fig)
