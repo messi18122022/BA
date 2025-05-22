@@ -6,8 +6,8 @@ from scipy.optimize import curve_fit
 qm_true = 1.5  # maximale Adsorptionskapazität
 K_true = 0.8   # Gleichgewichtskonstante
 K0 = 1e3  # Vorfaktor für K(E)
-E_min = 10000  # minimale Adsorptionsenergie in J/mol
-E_max = 50000  # maximale Adsorptionsenergie in J/mol
+E_min = 5704   # minimale Adsorptionsenergie in J/mol
+E_max = 21430  # maximale Adsorptionsenergie in J/mol
 E_points = 200  # Anzahl der Energiepunkte
 max_iter = 500
 skalieren_mit_qm = True
