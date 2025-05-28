@@ -33,10 +33,16 @@ def langmuir(C, qm, K):
 
 q_data = langmuir(C_data, qm_true, K_true)  # Berechne q für jede Konzentration C_data
 
-# --- Berechnung von E_min und E_max basierend auf Konzentrationen ---
-# Der Energiebereich ergibt sich aus der Umkehrung der Beziehung: K(E) = K0 * exp(-E / RT)
-# Daraus folgt: E = -RT * ln(K / K0)
-# Wir setzen K_min = 1 / C_max und K_max = 1 / C_min, wie in der Literatur empfohlen.
+# --- Hinweis aus der Literatur ---
+# Laut Gritti & Guiochon (2005) sollte der Energiebereich (E_min bis E_max) aus dem Konzentrationsbereich gewählt werden.
+# Dazu werden K_min = 1 / C_max und K_max = 1 / C_min gesetzt.
+# Dann ergibt sich E = -RT * ln(K / K0), sodass:
+#   E_min = -RT * ln(K_max / K0)
+#   E_max = -RT * ln(K_min / K0)
+# Diese Beziehung stellt sicher, dass die betrachteten Energien genau den Bereich abdecken,
+# den die experimentellen Konzentrationen informativ beeinflussen.
+# Zudem ist laut der Literatur die absolute Wahl von K0 nicht kritisch für die Form von f(E),
+# solange sie konstant bleibt – es beeinflusst nur die absolute Lage der Energieachse.
 
 C_min = np.min(C_data)  # minimale Konzentration im Datensatz
 C_max = np.max(C_data)  # maximale Konzentration im Datensatz
@@ -52,10 +58,10 @@ E_max = -R * T * np.log(K_min / K0)  # maximale Energie, entspricht schwächster
 E_points = 200  # Wir teilen den Bereich zwischen E_min und E_max in 200 gleich große Abschnitte auf
 
 # max_iter: Maximale Anzahl der Iterationen für das EM-Verfahren, das zur Schätzung der Energieverteilung verwendet wird.
-max_iter = 5  # Wir wiederholen den Schätzprozess bis zu 500 Mal, um eine gute Lösung zu finden
+max_iter = 500  # Wir wiederholen den Schätzprozess bis zu 500 Mal, um eine gute Lösung zu finden
 
 # skalieren_mit_qm: Ein Wahrheitswert, der angibt, ob die gefundene Verteilung mit der maximalen Adsorptionskapazität skaliert werden soll.
-skalieren_mit_qm = False  # Wenn True, wird die Verteilung so angepasst, dass sie die tatsächliche Kapazität widerspiegelt
+skalieren_mit_qm = True  # Wenn True, wird die Verteilung so angepasst, dass sie die tatsächliche Kapazität widerspiegelt
 
 # Setze den Zufallszahlengenerator auf einen festen Wert, damit die Ergebnisse immer gleich sind (Reproduzierbarkeit).
 np.random.seed(0)
