@@ -7,6 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 plt.rc('text', usetex=True)
 plt.rc('font', family='serif')
+plt.rcParams['text.latex.preamble'] = r'\usepackage{siunitx}\usepackage{amsmath}'
 
 # --------------------- Konfiguration ---------------------
 ORDNER_MIT_SÄULE = "Van-Deemter/Anionentauscher/mit_saule"
@@ -111,8 +112,8 @@ def process_files(filepaths, beschriftung, integrationsgrenzen):
         axes[0].axvspan(zeit[i1], zeit[i2], color="orange", alpha=0.2, label="Peak-Fenster")
         axes[0].axvline(t_mean, color="red", linestyle="--", label="Retentionszeit")
         axes[0].axvspan(t_mean - sigma, t_mean + sigma, color="red", alpha=0.1, label=r"$t_R \pm \sigma$")
-        axes[0].set_xlabel("Zeit (min)")
-        axes[0].set_ylabel("Leitfaehigkeit ($\\mu$S/cm)")
+        axes[0].set_xlabel(r"Zeit $t$ / min")
+        axes[0].set_ylabel(r"Leitfähigkeit $\sigma$ / \si{\micro\siemens\per\centi\meter}")
         axes[0].invert_yaxis()
         axes[0].legend(loc="upper right")
 
@@ -121,8 +122,8 @@ def process_files(filepaths, beschriftung, integrationsgrenzen):
         axes[1].axvspan(zeit[i1], zeit[i2], color="orange", alpha=0.2)
         axes[1].axvline(t_mean, color="red", linestyle="--")
         axes[1].axvspan(t_mean - sigma, t_mean + sigma, color="red", alpha=0.1)
-        axes[1].set_xlabel("Zeit (min)")
-        axes[1].set_ylabel("Leitfaehigkeit ($\\mu$S/cm)")
+        axes[1].set_xlabel(r"Zeit $t$ / min")
+        axes[1].set_ylabel(r"Leitfähigkeit $\sigma$ / \si{\micro\siemens\per\centi\meter}")
         x_left = zeit[i1] - 0.1*(zeit[i2]-zeit[i1])
         x_right = zeit[i2] + 0.1*(zeit[i2]-zeit[i1])
         axes[1].set_xlim(x_left, x_right)
