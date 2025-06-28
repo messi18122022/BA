@@ -87,6 +87,7 @@ def process_files(filepaths, beschriftung, integrationsgrenzen):
                 continue
             zeit = df.iloc[:, 0].values
             signal = df.iloc[:, 1].values
+            signal_plot = -signal
             
             # Hole die Integrationsgrenzen anhand des Dateinamens
             dateiname = os.path.basename(datei)
@@ -103,6 +104,7 @@ def process_files(filepaths, beschriftung, integrationsgrenzen):
             
             t_slice = zeit[left_idx:right_idx+1]
             s_slice = signal[left_idx:right_idx+1]
+            s_slice_plot = -s_slice
             t_mean, sigma = momentanalyse(t_slice, s_slice)
             if np.isnan(t_mean) or np.isnan(sigma):
                 print(f"Warnung: Keine gültigen Werte in '{dateiname}' gefunden.")
@@ -113,13 +115,13 @@ def process_files(filepaths, beschriftung, integrationsgrenzen):
             
             # Erzeuge Plot: Gesamtes Chromatogramm und Zoom auf den Peak (Titel entfernt)
             fig, axes = plt.subplots(1, 2, figsize=(7.2, 3))
-            axes[0].plot(zeit, signal, color="blue", label="Signal")
+            axes[0].plot(zeit, signal_plot, color="blue", label="Signal")
             axes[0].axvspan(zeit[left_idx], zeit[right_idx], color="orange", alpha=0.2, label="Peak-Fenster")
             axes[0].axvline(t_mean, color="red", linestyle="--", label="Retentionszeit")
             axes[0].axvspan(t_mean - sigma, t_mean + sigma, color="red", alpha=0.1, label="t\_mean $\pm\sigma$")
             axes[0].set_xlabel("Zeit (min)")
             axes[0].set_ylabel("Leitfähigkeit ($\\mu$S/cm)")
-            axes[1].plot(zeit, signal, color="blue", label="Signal")
+            axes[1].plot(zeit, signal_plot, color="blue", label="Signal")
             axes[1].axvspan(zeit[left_idx], zeit[right_idx], color="orange", alpha=0.2)
             axes[1].axvline(t_mean, color="red", linestyle="--", label="Retentionszeit")
             axes[1].axvspan(t_mean - sigma, t_mean + sigma, color="red", alpha=0.1, label="t\_mean $\pm\sigma$")
@@ -129,11 +131,23 @@ def process_files(filepaths, beschriftung, integrationsgrenzen):
             x_left = zeit[left_idx] - 0.1 * (zeit[right_idx] - zeit[left_idx])
             x_right = zeit[right_idx] + 0.1 * (zeit[right_idx] - zeit[left_idx])
             axes[1].set_xlim(x_left, x_right)
-            peak_min = np.min(s_slice)
-            peak_max = np.max(s_slice)
+            peak_min = np.min(s_slice_plot)
+            peak_max = np.max(s_slice_plot)
             if peak_min != peak_max:
                 y_margin = 0.1 * (peak_max - peak_min)
                 axes[1].set_ylim(peak_min - y_margin, peak_max + y_margin)
+            # Invert y-axis so positive conductivity peaks appear upward
+            axes[0].invert_yaxis()
+            axes[1].invert_yaxis()
+            # Annotate retention time in top-right of zoomed subplot
+            axes[1].text(
+                0.95, 0.95,
+                rf"$t_R = {t_mean:.3f}\,\mathrm{{min}}$",
+                transform=axes[1].transAxes,
+                ha='right',
+                va='top',
+                bbox=dict(boxstyle="round", fc="white", alpha=0.5)
+            )
             plt.tight_layout(rect=[0, 0.03, 1, 0.92])
             base_name = os.path.splitext(dateiname)[0]
             output_path = os.path.join(os.path.dirname(datei), base_name + ".pdf")
@@ -411,6 +425,36 @@ def main():
     excel_output_file = os.path.join(OUTPUT_DIR, "Hwerte_Berechnungen.xlsx")
     df_excel.to_excel(excel_output_file, index=False)
     print("Die Excel-Tabelle mit den H-Werte-Berechnungen wurde erfolgreich erstellt und gespeichert.")
+
+    # Berechnung des Totvolumens der Säule (mL) = Flussrate (mL/min) * tR_column (min)
+    flow_rates_column = np.linspace(default_flow_rates[0], default_flow_rates[-1], len(tR_column_list))
+    volumen_saeule = flow_rates_column * np.array(tR_column_list)
+    # Berechnete Retentionszeit (Differenz Total - Extra)
+    tR_berechnet = np.array(tR_column_list)
+    # Erstelle DataFrame mit allen Werten
+    df_volumen = pd.DataFrame({
+        "Messung": list(range(1, len(tR_column_list) + 1)),
+        "Flussrate (mL/min)": flow_rates_column,
+        "tR_mit_Säule (min)": tR_total_list,
+        "tR_ohne_Säule (min)": tR_extra_list,
+        "tR_berechnet (min)": tR_berechnet,
+        "Totvolumen_Säule (mL)": volumen_saeule
+    })
+    # Berechne Mittelwert und Standardabweichung des Totvolumens und füge als Zusammenfassung hinzu
+    mean_volumen = np.mean(volumen_saeule)
+    std_volumen = np.std(volumen_saeule, ddof=1)
+    df_summary = pd.DataFrame({
+        "Messung": ["Mittelwert", "Standardabweichung"],
+        "Flussrate (mL/min)": ["", ""],
+        "tR_mit_Säule (min)": ["", ""],
+        "tR_ohne_Säule (min)": ["", ""],
+        "tR_berechnet (min)": ["", ""],
+        "Totvolumen_Säule (mL)": [mean_volumen, std_volumen]
+    })
+    df_volumen = pd.concat([df_volumen, df_summary], ignore_index=True)
+    csv_output_file = os.path.join(OUTPUT_DIR, "Totvolumen_Saeule.csv")
+    df_volumen.to_csv(csv_output_file, index=False)
+    print(f"Die CSV-Datei mit Retentionszeiten, berechneter Retentionszeit und Totvolumen der Säule wurde gespeichert: {csv_output_file}")
 
 if __name__ == '__main__':
     main()

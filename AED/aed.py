@@ -32,6 +32,8 @@ def langmuir(C, qm, K):
     return (qm * K * C) / (1 + K * C)
 
 q_data = langmuir(C_data, qm_true, K_true)  # Berechne q für jede Konzentration C_data
+# RAUSCHEN AUF Q_DATA ANWENDEN, 
+
 
 # --- Hinweis aus der Literatur ---
 # Laut Gritti & Guiochon (2005) sollte der Energiebereich (E_min bis E_max) aus dem Konzentrationsbereich gewählt werden.
