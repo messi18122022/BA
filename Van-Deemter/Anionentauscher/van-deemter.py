@@ -7,7 +7,7 @@ from scipy.optimize import curve_fit
 
 plt.rc('text', usetex=True)
 plt.rc('font', family='serif')
-plt.rcParams['text.latex.preamble'] = r'\usepackage{siunitx}'
+plt.rcParams['text.latex.preamble'] = r'\usepackage{siunitx}\usepackage{amsmath}'
 
 # Plot-Größe in Zentimetern
 FIG_WIDTH_CM, FIG_HEIGHT_CM = 16, 8
@@ -38,7 +38,7 @@ def fit_and_plot(u, H, title, output_pdf):
     plt.figure(figsize=FIG_SIZE)
     plt.scatter(u, H, color='blue', label='Messdaten')
     plt.plot(u_fit, H_fit, 'r-', label='Fit')
-    plt.xlabel(r"Flussrate $u$ / (\si{\milli\liter\per\minute})")
+    plt.xlabel(r"Flussrate $\Dot{V}$ / (\si{\milli\liter\per\minute})")
     plt.ylabel(r"HETP / (\si{\milli\meter})")
     # Titel entfernt
     plt.text(0.05, 0.95,
@@ -99,7 +99,7 @@ def main():
     # Überlagerte Balken: Blau hinter Rot
     plt.bar(flow_rates, ret_mit, width=width, color='blue', label='mit Säule', zorder=2)
     plt.bar(flow_rates, ret_ohne, width=width, color='red', label='ohne Säule', zorder=2)
-    plt.xlabel(r"Flussrate $u$ / (\si{\milli\liter\per\minute})")
+    plt.xlabel(r"Flussrate $\Dot{V}$ / (\si{\milli\liter\per\minute})")
     plt.ylabel(r"Retentionszeit $t_R$ / (\si{\minute})")
     plt.legend()
     plt.grid(True, zorder=0)
@@ -114,7 +114,7 @@ def main():
     # Überlagerte Balken: Blau hinter Rot
     plt.bar(flow_rates, sigma_mit, width=width, color='blue', label='mit Säule', zorder=2)
     plt.bar(flow_rates, sigma_ohne, width=width, color='red', label='ohne Säule', zorder=2)
-    plt.xlabel(r"Flussrate $u$ / (\si{\milli\liter\per\minute})")
+    plt.xlabel(r"Flussrate $\Dot{V}$ / (\si{\milli\liter\per\minute})")
     plt.ylabel(r"Peakbreite $\sigma$ / (\si{\minute})")
     plt.legend()
     plt.grid(True, zorder=0)
